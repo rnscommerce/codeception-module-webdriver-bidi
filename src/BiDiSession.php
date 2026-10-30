@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Rnscommerce\Codeception\WebDriverBiDi;
 
 use Rnscommerce\WebDriver\BiDi\BiDi;
+use Rnscommerce\WebDriver\BiDi\BiDiException;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\BrowsingContext;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\ContextCreatedParameters;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\CreateParameters;
@@ -46,10 +47,10 @@ final class BiDiSession
             let pending = false;
             const notify = () => {
                 const now = Date.now();
-                if (now - last >= %1$d) { last = now; send(1); return; }
+                if (now - last >= %1$d) { last = now; send(now); return; }
                 if (pending) return;
                 pending = true;
-                setTimeout(() => { pending = false; last = Date.now(); send(1); }, %1$d);
+                setTimeout(() => { pending = false; last = Date.now(); send(last); }, %1$d);
             };
             new MutationObserver(notify).observe(document, {
                 subtree: true, childList: true, attributes: true, characterData: true,
@@ -76,6 +77,9 @@ final class BiDiSession
         }
         JS;
 
+    /** Seconds the browser's clock is ahead of this process's, which its events' times are converted by. */
+    private float $clockOffset = 0.0;
+
     private function __construct(
         private readonly BiDi $bidi,
         private readonly Script $script,
@@ -83,10 +87,14 @@ final class BiDiSession
     ) {
     }
 
-    public static function connect(string $webSocketUrl): self
+    /**
+     * @param string $window any of the session's windows, to read the browser's clock in
+     */
+    public static function connect(string $webSocketUrl, string $window): self
     {
         $bidi = BiDi::connect($webSocketUrl);
         $session = new self($bidi, new Script($bidi), new PageActivity());
+        $session->clockOffset = $session->readClockOffset($window);
         $session->watch(new Network($bidi), new BrowsingContextInspector($bidi));
         return $session;
     }
@@ -165,9 +173,35 @@ final class BiDiSession
         (new BrowsingContext($this->bidi, $window))->close();
     }
 
+    /**
+     * The browser's clock against this process's, read once: the two may be on different machines.
+     */
+    private function readClockOffset(string $window): float
+    {
+        $sent = microtime(true);
+        $result = $this->script->callFunctionInBrowsingContext($window, '() => Date.now()', false);
+        $received = microtime(true);
+        $milliseconds = $result instanceof EvaluationResultSuccess && $result->result instanceof NumberValue
+            ? $result->result->value
+            : null;
+        if (!is_int($milliseconds) && !is_float($milliseconds)) {
+            throw new BiDiException('The browser did not tell the time');
+        }
+        return $milliseconds / 1000 - ($sent + $received) / 2;
+    }
+
+    /**
+     * Now, in seconds on the browser's clock, which the times of the page's activity are in.
+     */
+    private function now(): float
+    {
+        return microtime(true) + $this->clockOffset;
+    }
+
     private function watch(Network $network, BrowsingContextInspector $contexts): void
     {
         $activity = $this->activity;
+        $now = $this->now(...);
         $contexts->onBrowsingContextCreated(static function (ContextCreatedParameters $created) use ($activity): void {
             $activity->contextCreated($created->context, $created->parent);
         });
@@ -176,19 +210,29 @@ final class BiDiSession
         });
         $network->onBeforeRequestSent(static function (BeforeRequestSentParameters $sent) use ($activity): void {
             if ($sent->context !== null) {
-                $activity->requestSent($sent->request->request, $sent->context, microtime(true), $sent->navigation);
+                $at = $sent->timestamp / 1000;
+                $activity->requestSent($sent->request->request, $sent->context, $at, $sent->navigation);
             }
         });
-        $ended = static function (ResponseCompletedParameters|FetchErrorParameters $ended) use ($activity): void {
+        $network->onResponseCompleted(static function (ResponseCompletedParameters $ended) use ($activity): void {
+            // Chrome stamps the event with the time the request was sent, and its timings with when it ended.
+            $timings = $ended->request->timings;
             if ($ended->context !== null) {
-                $activity->requestEnded($ended->request->request, $ended->context, microtime(true));
+                $at = max($ended->timestamp, $timings->timeOrigin + $timings->responseEnd) / 1000;
+                $activity->requestEnded($ended->request->request, $ended->context, $at);
             }
-        };
-        $network->onResponseCompleted($ended);
-        $network->onFetchError($ended);
-        $this->script->onMessage(static function (MessageParameters $message) use ($activity): void {
+        });
+        $network->onFetchError(static function (FetchErrorParameters $failed) use ($activity, $now): void {
+            // Chrome tells no time a request failed at but the time it was sent, so it is taken as heard of.
+            if ($failed->context !== null) {
+                $activity->requestEnded($failed->request->request, $failed->context, $now());
+            }
+        });
+        $this->script->onMessage(static function (MessageParameters $message) use ($activity, $now): void {
             if ($message->channel === self::DOM_CHANNEL && $message->source->context !== null) {
-                $activity->domChanged($message->source->context, microtime(true));
+                $sent = $message->data instanceof NumberValue ? $message->data->value : null;
+                $at = is_int($sent) || is_float($sent) ? $sent / 1000 : $now();
+                $activity->domChanged($message->source->context, $at);
             }
         });
         $this->script->addPreloadScript(
@@ -199,8 +243,8 @@ final class BiDiSession
 
     private function waitUntilQuiet(string $window, float $deadline): bool
     {
-        $since = microtime(true);
-        while (($wait = $this->activity->quietIn($window, $since, microtime(true))) > 0.0) {
+        $since = $this->now();
+        while (($wait = $this->activity->quietIn($window, $since, $this->now())) > 0.0) {
             $left = $deadline - microtime(true);
             if ($left <= 0.0) {
                 return false;

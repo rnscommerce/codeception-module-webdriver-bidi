@@ -3,5 +3,7 @@
 <title>long poll</title>
 <p id="result">polling</p>
 <script>
-  fetch('slow.php?ms=15000').then(() => { document.getElementById('result').textContent = 'answered'; });
+  // ?after=<ms> sends the request that long after the page loads.
+  const after = Number(new URLSearchParams(location.search).get('after') ?? 0);
+  setTimeout(() => fetch('slow.php?ms=15000').then(() => { document.getElementById('result').textContent = 'answered'; }), after);
 </script>

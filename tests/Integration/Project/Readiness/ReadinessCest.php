@@ -84,6 +84,17 @@ final class ReadinessCest
         Assert::assertLessThan(12.0, $elapsed);
     }
 
+    public function timesARequestFromWhenItWasSentNotFromWhenItWasHeardOf(BrowserTester $I): void
+    {
+        $I->amOnPage('/longpoll.html?after=500');
+        $I->wait(8);
+
+        $elapsed = self::timeReadiness($I, 15);
+
+        Assert::assertGreaterThan(1.0, $elapsed);
+        Assert::assertLessThan(5.0, $elapsed);
+    }
+
     public function returnsPromptlyOnAQuietPage(BrowserTester $I): void
     {
         $I->amOnPage('/quiet.html');

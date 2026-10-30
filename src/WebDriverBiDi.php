@@ -373,7 +373,7 @@ class WebDriverBiDi extends Module
             return;
         }
         try {
-            $this->session = BiDiSession::connect($webSocketUrl);
+            $this->session = BiDiSession::connect($webSocketUrl, $driver->getWindowHandle());
         } catch (HttpException | BiDiException $e) {
             $this->debugSection('BiDi', 'Going on without BiDi, which failed to connect: ' . $e->getMessage());
         }
