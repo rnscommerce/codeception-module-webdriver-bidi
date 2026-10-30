@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>perpetual</title>
+<div id="spinner" style="width: 20px; height: 20px; background: teal;"></div>
+<button id="go">Go</button>
+<p id="result">waiting</p>
+<script>
+  // One finite animation after another, so there is always one to wait for.
+  const spinner = document.getElementById('spinner');
+  const spin = () => spinner.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], 1500).finished.then(spin);
+  spin();
+  document.getElementById('go').addEventListener('click', () => { document.getElementById('result').textContent = 'clicked'; });
+</script>

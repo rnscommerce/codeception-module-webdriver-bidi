@@ -31,6 +31,16 @@ class WebDriverBiDi extends Module
     /** How long a wait goes without checking while nothing is seen to change on the page. */
     private const SILENCE = 0.5;
 
+    /** The actions that act on the page, each taken only once the page is ready, or once READY_BEFORE_ACTING ends. */
+    private const ACTIONS = [
+        'appendField', 'attachFile', 'checkOption', 'clearField', 'click', 'clickWithLeftButton',
+        'clickWithRightButton', 'doubleClick', 'dragAndDrop', 'fillField', 'moveMouseOver', 'pressKey',
+        'selectOption', 'submitForm', 'type', 'uncheckOption', 'unselectOption',
+    ];
+
+    /** How long an action waits for the page to be ready before it acts on a page still busy. */
+    private const READY_BEFORE_ACTING = 2.0;
+
     private WebDriver $webDriver;
 
     private ?BiDiSession $session = null;
@@ -51,6 +61,17 @@ class WebDriverBiDi extends Module
         $this->follow();
         if ($this->userContext === null && $this->isolatesTests()) {
             $this->isolate();
+        }
+    }
+
+    public function _beforeStep(Step $step): void
+    {
+        $driver = $this->webDriver->webDriver;
+        if ($this->session === null || $driver === null || !in_array($step->getAction(), self::ACTIONS, true)) {
+            return;
+        }
+        if (!$this->session->waitUntilReady($driver->getWindowHandle(), self::READY_BEFORE_ACTING)) {
+            $this->debugSection('BiDi', sprintf('Acting on a page still busy after %s s', self::READY_BEFORE_ACTING));
         }
     }
 

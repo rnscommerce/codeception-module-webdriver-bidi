@@ -92,7 +92,7 @@ final class BiDiSession
 
     /**
      * Waits until the window's network and DOM are quiet and its finite animations have ended, checking quiet
-     * again after any animation it waited for. Returns false if the network or DOM is still busy after $timeout.
+     * again after any animation it waited for. Returns false if the page is still busy after $timeout.
      */
     public function waitUntilReady(string $window, float $timeout): bool
     {
@@ -102,7 +102,7 @@ final class BiDiSession
             if (!$this->waitUntilQuiet($window, $deadline)) {
                 return false;
             }
-        } while ($this->awaitAnimations($window) && ++$round < self::ROUNDS);
+        } while ($this->awaitAnimations($window, $deadline) && ++$round < self::ROUNDS);
         return true;
     }
 
@@ -202,14 +202,15 @@ final class BiDiSession
     }
 
     /**
-     * Whether any finite animation was running, each awaited to its end.
+     * Whether any finite animation was running, each awaited to its end or until the deadline.
      */
-    private function awaitAnimations(string $window): bool
+    private function awaitAnimations(string $window, float $deadline): bool
     {
+        $cap = min(self::ANIMATION_CAP_MS, max(0, (int) (1000 * ($deadline - microtime(true)))));
         try {
             $result = $this->script->callFunctionInBrowsingContext(
                 $window,
-                sprintf(self::AWAIT_ANIMATIONS, self::ANIMATION_CAP_MS),
+                sprintf(self::AWAIT_ANIMATIONS, $cap),
                 true,
             );
         } catch (ErrorResponseException) {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Readiness;
 
 use Facebook\WebDriver\Exception\ElementClickInterceptedException;
+use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\WebDriverBy;
 use PHPUnit\Framework\Assert;
 use Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\BrowserTester;
 
@@ -35,14 +37,40 @@ final class ReadinessCest
 
     public function withoutWaitingTheTransitionIsInTheWay(BrowserTester $I): void
     {
-        $I->amOnPage('/transition.html');
+        $I->amOnPage('/transition.html?duration=1.5s');
         $I->click('#open');
 
         try {
-            $I->click('#confirm');
+            $I->executeInSelenium(
+                static fn (RemoteWebDriver $driver) => $driver->findElement(WebDriverBy::id('confirm'))->click(),
+            );
             Assert::fail('#confirm was clicked before the curtain had opened');
         } catch (ElementClickInterceptedException) {
         }
+    }
+
+    public function aClickWaitsForTheTransitionInItsWay(BrowserTester $I): void
+    {
+        $I->amOnPage('/transition.html?duration=1.5s');
+        $I->click('#open');
+
+        $I->click('#confirm');
+
+        Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
+    }
+
+    public function aClickOnAPageThatNeverSettlesWaitsOnlySoLong(BrowserTester $I): void
+    {
+        $I->amOnPage('/perpetual.html');
+
+        $started = microtime(true);
+        $I->click('#go');
+        $elapsed = microtime(true) - $started;
+        codecept_debug(sprintf('Clicked after %.3f s', $elapsed));
+
+        Assert::assertSame('clicked', $I->grabTextFrom('#result'));
+        Assert::assertGreaterThan(1.9, $elapsed);
+        Assert::assertLessThan(2.5, $elapsed);
     }
 
     public function doesNotWaitForARequestOnceItIsStale(BrowserTester $I): void

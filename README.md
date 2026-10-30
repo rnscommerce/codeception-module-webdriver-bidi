@@ -73,6 +73,21 @@ window in it, whether the test passed or failed.
 - Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
   in the current test's user context.
 
+## Act on a settled page
+
+Every action that acts on the page waits for it to be ready first, by the same
+rule, so a click never lands on a page still settling:
+
+`appendField`, `attachFile`, `checkOption`, `clearField`, `click`,
+`clickWithLeftButton`, `clickWithRightButton`, `doubleClick`, `dragAndDrop`,
+`fillField`, `moveMouseOver`, `pressKey`, `selectOption`, `submitForm`, `type`,
+`uncheckOption` and `unselectOption`.
+
+It waits at most 2 s, then acts anyway: a page that never settles, with an
+animation that keeps restarting or a request that keeps polling, slows each action
+by 2 s but does not fail it. On a quiet page the wait costs about 0.1 s. Waits,
+assertions, grabbers, navigation and popups are not waited for.
+
 ## Waits that listen
 
 The module replaces seven of the WebDriver module's waits: `waitForElement`,
