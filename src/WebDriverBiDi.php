@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Rnscommerce\Codeception\WebDriverBiDi;
 
+use Amp\Http\Client\HttpException;
 use Closure;
 use Codeception\Exception\ModuleConfigException;
 use Codeception\Exception\ModuleException;
@@ -124,7 +125,11 @@ class WebDriverBiDi extends Module
      */
     public function waitForPageReady(int|float|null $timeout = null): void
     {
-        [$driver, $session] = $this->browser();
+        $browser = $this->browser();
+        if ($browser === null) {
+            return;
+        }
+        [$driver, $session] = $browser;
         $timeout ??= $this->configuredWait();
         if (!$session->waitUntilReady($driver->getWindowHandle(), (float) $timeout)) {
             throw new TimeoutException(sprintf('The page was still busy after %s seconds', $timeout));
@@ -144,7 +149,11 @@ class WebDriverBiDi extends Module
             null,
             WebDriver::class,
         )($this->webDriver);
-        $this->until(static fn (): mixed => $callback($found), $timeout);
+        $this->until(
+            fn () => $this->webDriver->waitForElementChange($element, $callback, $timeout),
+            static fn (): mixed => $callback($found),
+            $timeout,
+        );
     }
 
     /**
@@ -154,7 +163,11 @@ class WebDriverBiDi extends Module
      */
     public function waitForElement($element, int $timeout = 10): void
     {
-        $this->until(WebDriverExpectedCondition::presenceOfElementLocated($this->locator($element)), $timeout);
+        $this->until(
+            fn () => $this->webDriver->waitForElement($element, $timeout),
+            WebDriverExpectedCondition::presenceOfElementLocated($this->locator($element)),
+            $timeout,
+        );
     }
 
     /**
@@ -164,7 +177,11 @@ class WebDriverBiDi extends Module
      */
     public function waitForElementVisible($element, int $timeout = 10): void
     {
-        $this->until(WebDriverExpectedCondition::visibilityOfElementLocated($this->locator($element)), $timeout);
+        $this->until(
+            fn () => $this->webDriver->waitForElementVisible($element, $timeout),
+            WebDriverExpectedCondition::visibilityOfElementLocated($this->locator($element)),
+            $timeout,
+        );
     }
 
     /**
@@ -175,7 +192,11 @@ class WebDriverBiDi extends Module
      */
     public function waitForElementNotVisible($element, int $timeout = 10): void
     {
-        $this->until(WebDriverExpectedCondition::invisibilityOfElementLocated($this->locator($element)), $timeout);
+        $this->until(
+            fn () => $this->webDriver->waitForElementNotVisible($element, $timeout),
+            WebDriverExpectedCondition::invisibilityOfElementLocated($this->locator($element)),
+            $timeout,
+        );
     }
 
     /**
@@ -186,7 +207,11 @@ class WebDriverBiDi extends Module
      */
     public function waitForElementClickable($element, int $timeout = 10): void
     {
-        $this->until(WebDriverExpectedCondition::elementToBeClickable($this->locator($element)), $timeout);
+        $this->until(
+            fn () => $this->webDriver->waitForElementClickable($element, $timeout),
+            WebDriverExpectedCondition::elementToBeClickable($this->locator($element)),
+            $timeout,
+        );
     }
 
     /**
@@ -197,6 +222,7 @@ class WebDriverBiDi extends Module
     public function waitForText(string $text, int $timeout = 10, $selector = null): void
     {
         $this->until(
+            fn () => $this->webDriver->waitForText($text, $timeout, $selector),
             WebDriverExpectedCondition::elementTextContains(
                 $selector ? $this->locator($selector) : WebDriverBy::xpath('//body'),
                 $text,
@@ -212,6 +238,7 @@ class WebDriverBiDi extends Module
     public function waitForJS(string $script, int $timeout = 5): void
     {
         $this->until(
+            fn () => $this->webDriver->waitForJS($script, $timeout),
             static fn (RemoteWebDriver $driver): mixed => $driver->executeScript($script),
             $timeout,
             sprintf(
@@ -330,20 +357,28 @@ class WebDriverBiDi extends Module
         }
         $webSocketUrl = $driver->getCapabilities()?->getCapability('webSocketUrl');
         if (!is_string($webSocketUrl)) {
-            throw new ModuleException($this, 'The browser session has no webSocketUrl, so its driver lacks BiDi');
+            $this->debugSection('BiDi', 'The browser session has no webSocketUrl, so it goes on without BiDi');
+            return;
         }
-        $this->session = BiDiSession::connect($webSocketUrl);
+        try {
+            $this->session = BiDiSession::connect($webSocketUrl);
+        } catch (HttpException | BiDiException $e) {
+            $this->debugSection('BiDi', 'Going on without BiDi, which failed to connect: ' . $e->getMessage());
+        }
     }
 
     /**
-     * @return array{RemoteWebDriver, BiDiSession}
+     * @return array{RemoteWebDriver, BiDiSession}|null null when the browser session goes on without BiDi
      */
-    private function browser(): array
+    private function browser(): ?array
     {
         $this->follow();
         $driver = $this->webDriver->webDriver;
-        if ($this->session === null || $driver === null) {
+        if ($driver === null) {
             throw new ModuleException($this, 'There is no browser session to wait in');
+        }
+        if ($this->session === null || $this->session->isClosed()) {
+            return null;
         }
         return [$driver, $this->session];
     }
@@ -351,12 +386,23 @@ class WebDriverBiDi extends Module
     /**
      * Checks the condition as WebDriverWait::until does, failing the same way, but checks it again only when the
      * page changes, once shortly after it stops changing, and otherwise after a silence, rather than every 250 ms.
+     * Without BiDi, it runs the WebDriver module's own wait instead.
      *
+     * @param Closure(): void $classic
      * @param WebDriverExpectedCondition|Closure(RemoteWebDriver): mixed $condition
      */
-    private function until(WebDriverExpectedCondition|Closure $condition, int $timeout, string $message = ''): void
-    {
-        [$driver, $session] = $this->browser();
+    private function until(
+        Closure $classic,
+        WebDriverExpectedCondition|Closure $condition,
+        int $timeout,
+        string $message = '',
+    ): void {
+        $browser = $this->browser();
+        if ($browser === null) {
+            $classic();
+            return;
+        }
+        [$driver, $session] = $browser;
         if ($timeout <= 0) {
             throw new TimeoutException($message);
         }

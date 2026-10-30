@@ -28,6 +28,10 @@ The order matters: Codeception runs `_before` hooks in the order modules are
 listed, and the WebDriver module starts its session in its own `_before`. Listed
 first, this module refuses to start.
 
+A helper's `_capabilities` function is given capabilities that read and write as
+an array does at their top level, so `$capabilities['name'] = $name` works. A
+nested option, such as `goog:chromeOptions`, is read, changed and set back whole.
+
 ## Wait for the page
 
 ```php
@@ -115,7 +119,10 @@ calling `waitForJS`, are the WebDriver module's and still check every 250 ms.
 
 ## What it needs from the driver
 
-A driver that speaks WebDriver BiDi. It is tested with ChromeDriver 156 and
+A driver that speaks WebDriver BiDi. A session without it, such as one a helper
+starts with capabilities of its own or with `_restart` and a new config, goes on
+without BiDi: actions do not wait for the page, `waitForPageReady` returns at
+once, and the seven waits are the WebDriver module's own. It is tested with ChromeDriver 156 and
 geckodriver 0.37 with Firefox 158.
 
 ## Development

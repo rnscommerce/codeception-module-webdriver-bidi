@@ -1,6 +1,7 @@
-actor: BrowserTester
+actor: RestartTester
 modules:
     enabled:
         - WebDriver:
               restart: true
         - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi
+        - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\Restarts

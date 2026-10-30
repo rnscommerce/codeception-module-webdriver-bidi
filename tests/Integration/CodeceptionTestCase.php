@@ -67,7 +67,9 @@ abstract class CodeceptionTestCase extends TestCase
 
     public function testRestartingTheBrowserForEachTest(): void
     {
-        $this->runSuite('Restart');
+        $output = $this->runSuite('Restart');
+
+        self::assertStringContainsString('has no webSocketUrl, so it goes on without BiDi', $output);
     }
 
     public function testIsolatingEachTestInAUserContext(): void
