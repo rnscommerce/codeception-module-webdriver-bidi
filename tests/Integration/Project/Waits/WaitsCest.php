@@ -136,6 +136,15 @@ final class WaitsCest
         self::assertFailsAsTheWebDriverModuleDoes($I, 'waitForElementChange', '#shown', static fn (): bool => false, 1);
     }
 
+    public function failsWithoutCheckingWhenGivenNoTime(WaitsTester $I): void
+    {
+        $I->amOnPage('/waits.html');
+
+        self::assertFailsAsTheWebDriverModuleDoes($I, 'waitForElement', '#shown', 0);
+        self::assertFailsAsTheWebDriverModuleDoes($I, 'waitForText', 'shown', -1);
+        self::assertFailsAsTheWebDriverModuleDoes($I, 'waitForJS', 'return true;', 0);
+    }
+
     private static function lagBehindThePage(WaitsTester $I, callable $wait): float
     {
         $wait();

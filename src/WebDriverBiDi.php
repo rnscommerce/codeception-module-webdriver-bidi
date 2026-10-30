@@ -326,6 +326,9 @@ class WebDriverBiDi extends Module
     private function until(WebDriverExpectedCondition|Closure $condition, int $timeout, string $message = ''): void
     {
         [$driver, $session] = $this->browser();
+        if ($timeout <= 0) {
+            throw new TimeoutException($message);
+        }
         $check = $condition instanceof WebDriverExpectedCondition ? $condition->getApply() : $condition;
         $deadline = microtime(true) + $timeout;
         $changed = true;
