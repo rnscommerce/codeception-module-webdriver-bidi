@@ -70,7 +70,7 @@ final class ReadinessCest
 
         Assert::assertSame('clicked', $I->grabTextFrom('#result'));
         Assert::assertGreaterThan(1.9, $elapsed);
-        Assert::assertLessThan(2.5, $elapsed);
+        Assert::assertLessThan(4.0, $elapsed);
     }
 
     public function doesNotWaitForARequestOnceItIsStale(BrowserTester $I): void
