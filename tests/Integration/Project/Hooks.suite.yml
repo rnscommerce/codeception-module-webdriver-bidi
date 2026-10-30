@@ -1,0 +1,9 @@
+actor: BrowserTester
+extensions:
+    enabled:
+        - Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\SuiteHooks
+modules:
+    enabled:
+        - WebDriver:
+              restart: true
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi

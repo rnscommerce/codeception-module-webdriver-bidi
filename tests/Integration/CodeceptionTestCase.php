@@ -77,6 +77,22 @@ abstract class CodeceptionTestCase extends TestCase
         self::assertMatchesRegularExpression('/^Tests: 6, Assertions: \d+, Failures: 1\.$/m', $output);
     }
 
+    public function testRunningOnAfterSuiteHooksCloseTheSession(): void
+    {
+        $output = $this->runSuite('Hooks');
+
+        self::assertMatchesRegularExpression('/^OK \(3 tests/m', $output);
+    }
+
+    public function testRunningOnAfterTheBrowserQuitsMidTest(): void
+    {
+        $output = $this->runSuite('Quit', 1);
+
+        self::assertMatchesRegularExpression('/^Tests: 2, Assertions: 0, Errors: 1\.$/m', $output);
+        self::assertMatchesRegularExpression('/^ *\[Facebook\\\\WebDriver\\\\Exception\\\\\w+\]/m', $output);
+        self::assertStringContainsString('Ran after the browser had quit', $output);
+    }
+
     /**
      * @return string what Codeception printed
      */

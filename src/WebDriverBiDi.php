@@ -13,11 +13,13 @@ use Codeception\Step;
 use Codeception\TestInterface;
 use Codeception\Util\Locator;
 use Facebook\WebDriver\Exception\NoSuchElementException;
+use Facebook\WebDriver\Exception\PhpWebDriverExceptionInterface;
 use Facebook\WebDriver\Exception\TimeoutException;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverElement;
 use Facebook\WebDriver\WebDriverExpectedCondition;
+use Rnscommerce\WebDriver\BiDi\BiDiException;
 
 /**
  * Adds WebDriver BiDi to the sessions of the enabled WebDriver module, or of any module extending it.
@@ -58,39 +60,52 @@ class WebDriverBiDi extends Module
 
     public function _before(TestInterface $test): void
     {
-        $this->follow();
-        if ($this->userContext === null && $this->isolatesTests()) {
-            $this->isolate();
-        }
+        $this->tolerate(function (): void {
+            $this->follow();
+            if ($this->userContext === null && $this->isolatesTests()) {
+                $this->isolate();
+            }
+        });
     }
 
     public function _beforeStep(Step $step): void
     {
         $driver = $this->webDriver->webDriver;
-        if ($this->session === null || $driver === null || !in_array($step->getAction(), self::ACTIONS, true)) {
+        $session = $this->session;
+        if ($session === null || $session->isClosed() || $driver === null) {
             return;
         }
-        if (!$this->session->waitUntilReady($driver->getWindowHandle(), self::READY_BEFORE_ACTING)) {
-            $this->debugSection('BiDi', sprintf('Acting on a page still busy after %s s', self::READY_BEFORE_ACTING));
+        if (!in_array($step->getAction(), self::ACTIONS, true)) {
+            return;
         }
+        $this->tolerate(function () use ($session, $driver): void {
+            if (!$session->waitUntilReady($driver->getWindowHandle(), self::READY_BEFORE_ACTING)) {
+                $this->debugSection(
+                    'BiDi',
+                    sprintf('Acting on a page still busy after %s s', self::READY_BEFORE_ACTING),
+                );
+            }
+        });
     }
 
     public function _afterStep(Step $step): void
     {
-        $this->follow();
-        $this->session?->drain();
+        $this->tolerate(function (): void {
+            $this->follow();
+            $this->session?->drain();
+        });
     }
 
     public function _after(TestInterface $test): void
     {
-        $this->follow();
-        $this->renewUserContext();
+        $this->tolerate($this->renewUserContext(...));
+        // _reconfigure, as amOnSubdomain does, gives the WebDriver module its configured capabilities again.
         $this->askForBiDi();
     }
 
     public function _afterSuite(): void
     {
-        $this->session?->close();
+        $this->tolerate(fn () => $this->session?->close());
         $this->session = null;
         $this->sessionId = null;
     }
@@ -263,7 +278,10 @@ class WebDriverBiDi extends Module
     {
         $driver = $this->webDriver->webDriver;
         $finished = $this->userContext;
-        if ($finished === null || $this->session === null || $driver === null) {
+        if ($finished === null || $this->session === null || $this->session->isClosed() || $driver === null) {
+            return;
+        }
+        if ($driver->getSessionID() !== $this->sessionId) {
             return;
         }
         $this->userContext = $this->openUserContextTab($this->session, $driver);
@@ -278,6 +296,19 @@ class WebDriverBiDi extends Module
         $userContext = $session->createUserContext();
         $driver->switchTo()->window($session->openTab($userContext));
         return $userContext;
+    }
+
+    /**
+     * Runs a hook's work, debugging what the browser or the BiDi connection fails with rather than throwing it, which
+     * would hide a step's own error, or end the run when thrown after a test.
+     */
+    private function tolerate(Closure $work): void
+    {
+        try {
+            $work();
+        } catch (BiDiException | PhpWebDriverExceptionInterface $e) {
+            $this->debugSection('BiDi', sprintf('%s: %s', $e::class, $e->getMessage()));
+        }
     }
 
     /**

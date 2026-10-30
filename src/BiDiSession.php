@@ -125,6 +125,11 @@ final class BiDiSession
         }
     }
 
+    public function isClosed(): bool
+    {
+        return $this->bidi->isClosed();
+    }
+
     public function close(): void
     {
         $this->bidi->close();
