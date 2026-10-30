@@ -50,7 +50,8 @@ page that has not changed for 100 ms already is ready at once.
 - A DOM that keeps changing is no longer waited for once the network has been
   quiet for 1 s of the wait.
 - Requests and changes in an iframe count for the window it is in; another
-  window's do not.
+  window's do not. Only the window's top document's animations are waited for,
+  not an iframe's.
 
 It fails when the page is still busy after its timeout, in seconds: the argument
 when given, otherwise the WebDriver module's `wait`. With `wait` at its default of
@@ -126,8 +127,10 @@ calling `waitForJS`, are the WebDriver module's and still check every 250 ms.
 A driver that speaks WebDriver BiDi. A session without it, such as one a helper
 starts with capabilities of its own or with `_restart` and a new config, goes on
 without BiDi: actions do not wait for the page, `waitForPageReady` returns at
-once, and the seven waits are the WebDriver module's own. It is tested with ChromeDriver 156 and
-geckodriver 0.37 with Firefox 158.
+once, and the seven waits are the WebDriver module's own.
+
+It has been tested locally with ChromeDriver 156 and geckodriver 0.37 with
+Firefox 158. CI runs against whichever drivers its runner image carries.
 
 ## Development
 
