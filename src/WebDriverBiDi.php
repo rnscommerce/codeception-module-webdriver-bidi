@@ -10,6 +10,7 @@ use Codeception\Module;
 use Codeception\Module\WebDriver;
 use Codeception\Step;
 use Codeception\TestInterface;
+use Facebook\WebDriver\Exception\TimeoutException;
 
 /**
  * Adds WebDriver BiDi to the sessions of the enabled WebDriver module, or of any module extending it.
@@ -50,6 +51,31 @@ class WebDriverBiDi extends Module
         $this->session?->close();
         $this->session = null;
         $this->sessionId = null;
+    }
+
+    /**
+     * Waits until the current window has no request in flight, its DOM has stopped changing and its animations
+     * have ended. A request older than ten seconds, such as a long poll, is not waited for.
+     *
+     * ```php
+     * <?php
+     * $I->click('Save');
+     * $I->waitForPageReady();
+     * ```
+     *
+     * @param int|float|null $timeout seconds, the WebDriver module's wait when not given
+     */
+    public function waitForPageReady(int|float|null $timeout = null): void
+    {
+        $this->follow();
+        $driver = $this->webDriver->webDriver;
+        if ($this->session === null || $driver === null) {
+            throw new ModuleException($this, 'There is no browser session to wait in');
+        }
+        $timeout ??= $this->configuredWait();
+        if (!$this->session->waitUntilReady($driver->getWindowHandle(), (float) $timeout)) {
+            throw new TimeoutException(sprintf('The page was still busy after %s seconds', $timeout));
+        }
     }
 
     private function findWebDriver(): WebDriver
@@ -95,5 +121,11 @@ class WebDriverBiDi extends Module
             throw new ModuleException($this, 'The browser session has no webSocketUrl, so its driver lacks BiDi');
         }
         $this->session = BiDiSession::connect($webSocketUrl);
+    }
+
+    private function configuredWait(): float
+    {
+        $wait = $this->webDriver->_getConfig('wait');
+        return is_numeric($wait) ? (float) $wait : 0.0;
     }
 }
