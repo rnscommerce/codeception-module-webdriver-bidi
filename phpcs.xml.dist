@@ -4,5 +4,8 @@
     <arg value="p"/>
     <file>src</file>
     <file>tests</file>
-    <rule ref="PSR12"/>
+    <rule ref="PSR12">
+        <!-- Codeception calls a module's hooks by names that start with an underscore. -->
+        <exclude name="PSR2.Methods.MethodDeclaration.Underscore"/>
+    </rule>
 </ruleset>
