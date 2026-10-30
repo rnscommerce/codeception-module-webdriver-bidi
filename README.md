@@ -76,6 +76,8 @@ window in it, whether the test passed or failed.
   `grabCookie`, `resetCookie`, `setCookie` and session snapshots would miss the
   page's cookies. In Firefox, tests share the browser as they would without this
   module.
+- Not where Chrome's download preferences are configured, in the `prefs` of
+  `goog:chromeOptions`: Chrome saves nothing a test downloads in a user context.
 - Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
   in the current test's user context.
 

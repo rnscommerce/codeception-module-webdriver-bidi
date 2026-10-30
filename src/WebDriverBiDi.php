@@ -274,13 +274,25 @@ class WebDriverBiDi extends Module
     /**
      * Whether tests share a browser whose cookies the WebDriver module clears between them, which a user context
      * per test does for storage, the cache and windows as well. Not in Firefox, whose WebDriver cookie commands
-     * reach only the default user context's cookies.
+     * reach only the default user context's cookies, nor where Chrome is told how to download, which it saves
+     * nothing of in a user context.
      */
     private function isolatesTests(): bool
     {
         return !$this->webDriver->_getConfig('restart')
             && $this->webDriver->_getConfig('clear_cookies')
-            && $this->webDriver->webDriver?->getCapabilities()?->getBrowserName() !== 'firefox';
+            && $this->webDriver->webDriver?->getCapabilities()?->getBrowserName() !== 'firefox'
+            && !$this->configuresDownloads();
+    }
+
+    private function configuresDownloads(): bool
+    {
+        $capabilities = $this->webDriver->_getConfig('capabilities');
+        $options = is_array($capabilities) ? $capabilities['goog:chromeOptions'] ?? null : null;
+        $prefs = is_array($options) ? $options['prefs'] ?? null : null;
+        $names = is_array($prefs) ? array_keys($prefs) : [];
+        return array_filter($names, static fn (int|string $name): bool => str_starts_with((string) $name, 'download'))
+            !== [];
     }
 
     /**
