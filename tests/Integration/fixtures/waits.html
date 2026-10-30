@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>waits</title>
+<style>
+  #animated { visibility: hidden; }
+  @keyframes reveal { to { visibility: visible; } }
+  #submenu { visibility: hidden; }
+  #menu:hover #submenu { visibility: visible; transition: visibility 0s 600ms; }
+  #styled { display: none; }
+</style>
+<p id="text">waiting</p>
+<p id="shown">shown</p>
+<p id="hidden" hidden>hidden</p>
+<button id="button" disabled>Go</button>
+<div id="menu">Menu <span id="submenu">Submenu</span></div>
+<p id="animated">animated</p>
+<p id="styled">styled</p>
+<script>
+  // ?change=<name>&after=<ms> makes one change that long after the page loads, and records when in changedAt.
+  const params = new URLSearchParams(location.search);
+  const after = Number(params.get('after') ?? 600);
+  const changed = () => { window.changedAt = Date.now(); };
+  const byId = (id) => document.getElementById(id);
+  const later = (change) => setTimeout(() => { change(); changed(); }, after);
+  const changes = {
+    appear: () => later(() => document.body.append(Object.assign(document.createElement('p'), { id: 'appeared' }))),
+    show: () => later(() => { byId('hidden').hidden = false; }),
+    hide: () => later(() => { byId('shown').hidden = true; }),
+    enable: () => later(() => { byId('button').disabled = false; }),
+    text: () => later(() => { byId('text').textContent = 'arrived'; }),
+    attribute: () => later(() => { byId('shown').className = 'changed'; }),
+    // Only JavaScript state changes, once a request ends.
+    fetched: () => fetch(`slow.php?ms=${after}`)
+      .then((response) => response.text())
+      .then(() => { window.flag = true; changed(); }),
+    // Only JavaScript state changes, on a timer.
+    timer: () => later(() => { window.flag = true; }),
+    // Only a style sheet changes.
+    rule: () => later(() => {
+      const sheet = document.styleSheets[0];
+      sheet.insertRule('#styled { display: block; }', sheet.cssRules.length);
+    }),
+    // Nothing changes but a CSS animation's delay running out.
+    animation: () => {
+      byId('animated').addEventListener('animationstart', changed);
+      byId('animated').style.animation = `reveal 0s ${after}ms forwards`;
+    },
+    hover: () => byId('submenu').addEventListener('transitionstart', changed),
+  };
+  changes[params.get('change')]?.();
+</script>

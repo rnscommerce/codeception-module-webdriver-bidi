@@ -53,6 +53,14 @@ final class BiDiSession
             new MutationObserver(notify).observe(document, {
                 subtree: true, childList: true, attributes: true, characterData: true,
             });
+            // What changes the page without a mutation: loads, the document's state, CSS animations and transitions.
+            for (const type of [
+                'load', 'readystatechange', 'pageshow',
+                'animationstart', 'animationend', 'animationcancel',
+                'transitionstart', 'transitionend', 'transitioncancel',
+            ]) {
+                addEventListener(type, notify, true);
+            }
         }
         JS;
 
@@ -96,6 +104,16 @@ final class BiDiSession
             }
         } while ($this->awaitAnimations($window) && ++$round < self::ROUNDS);
         return true;
+    }
+
+    /**
+     * Waits until any page changes: a request is sent or ends, a DOM changes, something loads, a document's ready
+     * state changes, or a CSS animation or transition starts or ends. Returns false if nothing changed in $timeout.
+     */
+    public function waitForChange(float $timeout): bool
+    {
+        $recorded = $this->activity->recorded();
+        return $this->bidi->waitFor(fn (): bool => $this->activity->recorded() !== $recorded, $timeout);
     }
 
     public function drain(): void

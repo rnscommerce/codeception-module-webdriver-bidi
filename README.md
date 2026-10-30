@@ -73,6 +73,29 @@ window in it, whether the test passed or failed.
 - Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
   in the current test's user context.
 
+## Waits that listen
+
+The module replaces seven of the WebDriver module's waits: `waitForElement`,
+`waitForElementVisible`, `waitForElementNotVisible`, `waitForElementClickable`,
+`waitForElementChange`, `waitForText` and `waitForJS`. Each takes the same
+arguments, checks the same condition with the WebDriver module's own locators and
+fails with the same exception and message, so tests do not change.
+
+Where the WebDriver module checks every 250 ms, these check once, then again only
+when the page changes: a request is sent or ends, the DOM changes, something
+loads, the document's ready state changes, or a CSS animation or transition
+starts or ends. A wait returns within a few milliseconds of the change it was
+waiting for.
+
+Some changes reach the page with none of those, such as JavaScript state set by a
+timer or a rule added to a style sheet. So a wait also checks 100 ms after the
+page last changed, for what its scripts do next, and every 500 ms while nothing
+changes at all.
+
+Codeception gives an action to the module listed last that has it, which is this
+one. Waits a module makes on its own behalf, such as MFTF's `waitForPageLoad`
+calling `waitForJS`, are the WebDriver module's and still check every 250 ms.
+
 ## What it needs from the driver
 
 A driver that speaks WebDriver BiDi. It is tested with ChromeDriver 156 and

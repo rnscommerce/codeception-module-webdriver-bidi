@@ -4,21 +4,33 @@ declare(strict_types=1);
 
 namespace Rnscommerce\Codeception\WebDriverBiDi;
 
+use Closure;
 use Codeception\Exception\ModuleConfigException;
 use Codeception\Exception\ModuleException;
 use Codeception\Module;
 use Codeception\Module\WebDriver;
 use Codeception\Step;
 use Codeception\TestInterface;
+use Codeception\Util\Locator;
+use Facebook\WebDriver\Exception\NoSuchElementException;
 use Facebook\WebDriver\Exception\TimeoutException;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\WebDriverBy;
+use Facebook\WebDriver\WebDriverElement;
+use Facebook\WebDriver\WebDriverExpectedCondition;
 
 /**
  * Adds WebDriver BiDi to the sessions of the enabled WebDriver module, or of any module extending it.
- * It has to be listed after that module.
+ * It has to be listed after that module, which also makes its waits the ones Codeception runs.
  */
 class WebDriverBiDi extends Module
 {
+    /** How soon a wait checks again after the page changed, for what the page's own code does next. */
+    private const AFTER_CHANGE = 0.1;
+
+    /** How long a wait goes without checking while nothing is seen to change on the page. */
+    private const SILENCE = 0.5;
+
     private WebDriver $webDriver;
 
     private ?BiDiSession $session = null;
@@ -76,15 +88,102 @@ class WebDriverBiDi extends Module
      */
     public function waitForPageReady(int|float|null $timeout = null): void
     {
-        $this->follow();
-        $driver = $this->webDriver->webDriver;
-        if ($this->session === null || $driver === null) {
-            throw new ModuleException($this, 'There is no browser session to wait in');
-        }
+        [$driver, $session] = $this->browser();
         $timeout ??= $this->configuredWait();
-        if (!$this->session->waitUntilReady($driver->getWindowHandle(), (float) $timeout)) {
+        if (!$session->waitUntilReady($driver->getWindowHandle(), (float) $timeout)) {
             throw new TimeoutException(sprintf('The page was still busy after %s seconds', $timeout));
         }
+    }
+
+    /**
+     * The WebDriver module's waitForElementChange, checking again when the page changes rather than on an interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy $element
+     */
+    public function waitForElementChange($element, Closure $callback, int $timeout = 30): void
+    {
+        $found = Closure::bind(
+            static fn (WebDriver $module): WebDriverElement
+                => $module->matchFirstOrFail($module->getBaseElement(), $element),
+            null,
+            WebDriver::class,
+        )($this->webDriver);
+        $this->until(static fn (): mixed => $callback($found), $timeout);
+    }
+
+    /**
+     * The WebDriver module's waitForElement, checking again when the page changes rather than on an interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy $element
+     */
+    public function waitForElement($element, int $timeout = 10): void
+    {
+        $this->until(WebDriverExpectedCondition::presenceOfElementLocated($this->locator($element)), $timeout);
+    }
+
+    /**
+     * The WebDriver module's waitForElementVisible, checking again when the page changes rather than on an interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy $element
+     */
+    public function waitForElementVisible($element, int $timeout = 10): void
+    {
+        $this->until(WebDriverExpectedCondition::visibilityOfElementLocated($this->locator($element)), $timeout);
+    }
+
+    /**
+     * The WebDriver module's waitForElementNotVisible, checking again when the page changes rather than on an
+     * interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy $element
+     */
+    public function waitForElementNotVisible($element, int $timeout = 10): void
+    {
+        $this->until(WebDriverExpectedCondition::invisibilityOfElementLocated($this->locator($element)), $timeout);
+    }
+
+    /**
+     * The WebDriver module's waitForElementClickable, checking again when the page changes rather than on an
+     * interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy $element
+     */
+    public function waitForElementClickable($element, int $timeout = 10): void
+    {
+        $this->until(WebDriverExpectedCondition::elementToBeClickable($this->locator($element)), $timeout);
+    }
+
+    /**
+     * The WebDriver module's waitForText, checking again when the page changes rather than on an interval.
+     *
+     * @param string|array<string, string>|\Facebook\WebDriver\WebDriverBy|null $selector
+     */
+    public function waitForText(string $text, int $timeout = 10, $selector = null): void
+    {
+        $this->until(
+            WebDriverExpectedCondition::elementTextContains(
+                $selector ? $this->locator($selector) : WebDriverBy::xpath('//body'),
+                $text,
+            ),
+            $timeout,
+            sprintf('Waited for %d secs but text %s still not found', $timeout, Locator::humanReadableString($text)),
+        );
+    }
+
+    /**
+     * The WebDriver module's waitForJS, checking again when the page changes rather than on an interval.
+     */
+    public function waitForJS(string $script, int $timeout = 5): void
+    {
+        $this->until(
+            static fn (RemoteWebDriver $driver): mixed => $driver->executeScript($script),
+            $timeout,
+            sprintf(
+                "Waited for %d secs but script %s still doesn't evaluate to true",
+                $timeout,
+                Locator::humanReadableString($script),
+            ),
+        );
     }
 
     private function findWebDriver(): WebDriver
@@ -182,6 +281,60 @@ class WebDriverBiDi extends Module
             throw new ModuleException($this, 'The browser session has no webSocketUrl, so its driver lacks BiDi');
         }
         $this->session = BiDiSession::connect($webSocketUrl);
+    }
+
+    /**
+     * @return array{RemoteWebDriver, BiDiSession}
+     */
+    private function browser(): array
+    {
+        $this->follow();
+        $driver = $this->webDriver->webDriver;
+        if ($this->session === null || $driver === null) {
+            throw new ModuleException($this, 'There is no browser session to wait in');
+        }
+        return [$driver, $this->session];
+    }
+
+    /**
+     * Checks the condition as WebDriverWait::until does, failing the same way, but checks it again only when the
+     * page changes, once shortly after it stops changing, and otherwise after a silence, rather than every 250 ms.
+     *
+     * @param WebDriverExpectedCondition|Closure(RemoteWebDriver): mixed $condition
+     */
+    private function until(WebDriverExpectedCondition|Closure $condition, int $timeout, string $message = ''): void
+    {
+        [$driver, $session] = $this->browser();
+        $check = $condition instanceof WebDriverExpectedCondition ? $condition->getApply() : $condition;
+        $deadline = microtime(true) + $timeout;
+        $changed = true;
+        $notFound = null;
+        while (true) {
+            try {
+                if ($check($driver)) {
+                    return;
+                }
+            } catch (NoSuchElementException $e) {
+                $notFound = $e;
+            }
+            $left = $deadline - microtime(true);
+            if ($left <= 0.0) {
+                throw $notFound ?? new TimeoutException($message);
+            }
+            $changed = $session->waitForChange(min($left, $changed ? self::AFTER_CHANGE : self::SILENCE));
+        }
+    }
+
+    /**
+     * @param string|array<string, string>|WebDriverBy $selector
+     */
+    private function locator($selector): WebDriverBy
+    {
+        return Closure::bind(
+            static fn (WebDriver $module): WebDriverBy => $module->getLocator($selector),
+            null,
+            WebDriver::class,
+        )($this->webDriver);
     }
 
     private function configuredWait(): float

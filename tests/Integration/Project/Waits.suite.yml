@@ -1,0 +1,6 @@
+actor: WaitsTester
+modules:
+    enabled:
+        - WebDriver
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi
+        - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\ClassicWaits
