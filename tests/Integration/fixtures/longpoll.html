@@ -1,0 +1,7 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>long poll</title>
+<p id="result">polling</p>
+<script>
+  fetch('slow.php?ms=15000').then(() => { document.getElementById('result').textContent = 'answered'; });
+</script>

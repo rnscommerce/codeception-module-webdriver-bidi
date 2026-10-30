@@ -24,3 +24,22 @@ jobs:
           ssh-private-key: ${{ secrets.PHP_WEBDRIVER_BIDI_DEPLOY_KEY }}
       - run: composer install --no-interaction
       - run: composer check
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PHP_WEBDRIVER_BIDI_DEPLOY_KEY }}
+      - run: composer install --no-interaction
+      - name: Locate the runner's drivers
+        run: |
+          echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver" >> "$GITHUB_ENV"
+          echo "GECKODRIVER=$GECKOWEBDRIVER/geckodriver" >> "$GITHUB_ENV"
+      - run: composer test:integration

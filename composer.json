@@ -36,7 +36,10 @@
   "scripts": {
     "test": "phpunit",
     "test:integration": "phpunit --testsuite integration",
-    "stan": "phpstan analyse",
+    "stan": [
+      "codecept build --config tests/Integration/Project --quiet",
+      "phpstan analyse"
+    ],
     "cs": "phpcs",
     "cs-fix": "phpcbf",
     "check": [

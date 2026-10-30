@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>fetch</title>
+<button id="load">Load</button>
+<p id="result">idle</p>
+<script>
+  const result = document.getElementById('result');
+  const step = (text, after) => new Promise((resolve) => setTimeout(() => { result.textContent = text; resolve(); }, after));
+  document.getElementById('load').addEventListener('click', async () => {
+    const text = await (await fetch('slow.php?ms=800')).text();
+    // Each change comes sooner than the DOM's quiet period, so only the last one ends the wait.
+    await step('rendering 1', 60);
+    await step('rendering 2', 60);
+    await step(text, 60);
+  });
+</script>

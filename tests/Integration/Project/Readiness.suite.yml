@@ -1,0 +1,5 @@
+actor: BrowserTester
+modules:
+    enabled:
+        - WebDriver
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi

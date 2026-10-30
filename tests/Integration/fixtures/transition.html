@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>transition</title>
+<style>
+  #stage { position: relative; width: 600px; height: 60px; overflow: hidden; }
+  #confirm { position: absolute; right: 0; top: 10px; width: 40px; height: 40px; }
+  #curtain { position: absolute; inset: 0; background: teal; transition: transform 2s linear; }
+  #curtain.open { transform: translateX(100%); }
+</style>
+<button id="open">Open</button>
+<div id="stage">
+  <button id="confirm">OK</button>
+  <div id="curtain"></div>
+</div>
+<p id="result">waiting</p>
+<script>
+  document.getElementById('open').addEventListener('click', () => document.getElementById('curtain').classList.add('open'));
+  document.getElementById('confirm').addEventListener('click', () => { document.getElementById('result').textContent = 'confirmed'; });
+</script>
