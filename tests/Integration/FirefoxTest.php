@@ -27,4 +27,9 @@ final class FirefoxTest extends CodeceptionTestCase
     {
         return ['moz:firefoxOptions' => ['args' => ['-headless']]];
     }
+
+    public function testIsolatingEachTestInAUserContext(): void
+    {
+        self::markTestSkipped('In Firefox, tests are not isolated');
+    }
 }

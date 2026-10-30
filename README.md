@@ -6,7 +6,8 @@ to its session, through [rnscommerce/php-webdriver-bidi](https://github.com/rnsc
 Every session the WebDriver module starts asks for `webSocketUrl`, and the module
 connects to it, following the session when the WebDriver module restarts the
 browser. Over that connection it follows each window's requests and DOM changes,
-which is what `waitForPageReady` waits on.
+which is what `waitForPageReady` waits on, and it keeps tests that share a browser
+from seeing each other's cookies, storage and windows.
 
 ## Enable it
 
@@ -47,6 +48,30 @@ CSS transitions and animations to end, checking again after any it waited for.
 It fails when the page is still busy after its timeout, in seconds: the argument
 when given, otherwise the WebDriver module's `wait`. With `wait` at its default of
 0, give it a timeout.
+
+## A user context for each test
+
+With the WebDriver module's `restart: false`, the tests of a suite share one
+browser. The WebDriver module clears the current page's cookies after each test,
+but cookies on other hosts, storage, the cache and the windows a test opened are
+all there for the next one.
+
+So when tests share a browser, each one runs in a user context of its own: a
+profile inside the browser, with its own cookies, storage and cache. The test
+starts in a single blank tab in it. After the test, the module moves the WebDriver
+module to the next test's user context and removes the finished one, closing every
+window in it, whether the test passed or failed.
+
+- It follows from the WebDriver module's config. With `restart: true` every test
+  has a new browser anyway, and with `clear_cookies: false` tests are meant to
+  share cookies, so neither gets a user context.
+- Not in Firefox. Its WebDriver cookie commands read and write the default user
+  context's cookies whichever tab is current, so in a user context `seeCookie`,
+  `grabCookie`, `resetCookie`, `setCookie` and session snapshots would miss the
+  page's cookies. In Firefox, tests share the browser as they would without this
+  module.
+- Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
+  in the current test's user context.
 
 ## What it needs from the driver
 

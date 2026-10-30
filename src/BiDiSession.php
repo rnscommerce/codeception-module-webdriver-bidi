@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Rnscommerce\Codeception\WebDriverBiDi;
 
 use Rnscommerce\WebDriver\BiDi\BiDi;
+use Rnscommerce\WebDriver\BiDi\BrowsingContext\BrowsingContext;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\ContextCreatedParameters;
+use Rnscommerce\WebDriver\BiDi\BrowsingContext\CreateParameters;
+use Rnscommerce\WebDriver\BiDi\BrowsingContext\CreateType;
 use Rnscommerce\WebDriver\BiDi\ErrorResponseException;
+use Rnscommerce\WebDriver\BiDi\Module\Browser;
 use Rnscommerce\WebDriver\BiDi\Module\BrowsingContextInspector;
 use Rnscommerce\WebDriver\BiDi\Module\Network;
 use Rnscommerce\WebDriver\BiDi\Module\Script;
@@ -104,6 +108,36 @@ final class BiDiSession
     public function close(): void
     {
         $this->bidi->close();
+    }
+
+    /**
+     * @return string a user context, which keeps cookies, storage and a cache of its own
+     */
+    public function createUserContext(): string
+    {
+        return (new Browser($this->bidi))->createUserContext();
+    }
+
+    /**
+     * Removes the user context and closes its windows. The session ends if they were its last.
+     */
+    public function removeUserContext(string $userContext): void
+    {
+        (new Browser($this->bidi))->removeUserContext($userContext);
+    }
+
+    /**
+     * @return string the tab's window handle
+     */
+    public function openTab(string $userContext): string
+    {
+        $parameters = new CreateParameters(CreateType::TAB, userContext: $userContext);
+        return BrowsingContext::create($this->bidi, $parameters)->getId();
+    }
+
+    public function closeWindow(string $window): void
+    {
+        (new BrowsingContext($this->bidi, $window))->close();
     }
 
     private function watch(Network $network, BrowsingContextInspector $contexts): void

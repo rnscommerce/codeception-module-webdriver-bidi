@@ -65,7 +65,17 @@ abstract class CodeceptionTestCase extends TestCase
         $this->runSuite('Restart');
     }
 
-    private function runSuite(string $suite): void
+    public function testIsolatingEachTestInAUserContext(): void
+    {
+        $output = $this->runSuite('Isolation', 1);
+
+        self::assertMatchesRegularExpression('/^Tests: 6, Assertions: \d+, Failures: 1\.$/m', $output);
+    }
+
+    /**
+     * @return string what Codeception printed
+     */
+    private function runSuite(string $suite, int $exitCode = 0): string
     {
         $server = self::$server ?? throw new \LogicException('No server');
         $driver = self::$driver ?? throw new \LogicException('No driver');
@@ -95,9 +105,11 @@ abstract class CodeceptionTestCase extends TestCase
             $pipes,
         );
         self::assertIsResource($process);
-        $exitCode = proc_close($process);
+        $exited = proc_close($process);
         rewind($output);
+        $printed = (string) stream_get_contents($output);
 
-        self::assertSame(0, $exitCode, (string) stream_get_contents($output));
+        self::assertSame($exitCode, $exited, $printed);
+        return $printed;
     }
 }

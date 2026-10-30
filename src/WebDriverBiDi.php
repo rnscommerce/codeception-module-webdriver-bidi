@@ -11,6 +11,7 @@ use Codeception\Module\WebDriver;
 use Codeception\Step;
 use Codeception\TestInterface;
 use Facebook\WebDriver\Exception\TimeoutException;
+use Facebook\WebDriver\Remote\RemoteWebDriver;
 
 /**
  * Adds WebDriver BiDi to the sessions of the enabled WebDriver module, or of any module extending it.
@@ -24,6 +25,9 @@ class WebDriverBiDi extends Module
 
     private ?string $sessionId = null;
 
+    /** The user context the WebDriver module's windows are in, replaced by a new one after each test. */
+    private ?string $userContext = null;
+
     public function _initialize(): void
     {
         $this->webDriver = $this->findWebDriver();
@@ -33,6 +37,9 @@ class WebDriverBiDi extends Module
     public function _before(TestInterface $test): void
     {
         $this->follow();
+        if ($this->userContext === null && $this->isolatesTests()) {
+            $this->isolate();
+        }
     }
 
     public function _afterStep(Step $step): void
@@ -43,6 +50,8 @@ class WebDriverBiDi extends Module
 
     public function _after(TestInterface $test): void
     {
+        $this->follow();
+        $this->renewUserContext();
         $this->askForBiDi();
     }
 
@@ -101,6 +110,57 @@ class WebDriverBiDi extends Module
     }
 
     /**
+     * Whether tests share a browser whose cookies the WebDriver module clears between them, which a user context
+     * per test does for storage, the cache and windows as well. Not in Firefox, whose WebDriver cookie commands
+     * reach only the default user context's cookies.
+     */
+    private function isolatesTests(): bool
+    {
+        return !$this->webDriver->_getConfig('restart')
+            && $this->webDriver->_getConfig('clear_cookies')
+            && $this->webDriver->webDriver?->getCapabilities()?->getBrowserName() !== 'firefox';
+    }
+
+    /**
+     * Moves the WebDriver module from its window in the default user context to a tab in a user context of its own.
+     */
+    private function isolate(): void
+    {
+        $driver = $this->webDriver->webDriver;
+        if ($this->session === null || $driver === null) {
+            return;
+        }
+        $window = $driver->getWindowHandle();
+        $this->userContext = $this->openUserContextTab($this->session, $driver);
+        $this->session->closeWindow($window);
+    }
+
+    /**
+     * Moves the WebDriver module to a tab in a new user context, ready for the next test, and removes the finished
+     * test's user context with its windows.
+     */
+    private function renewUserContext(): void
+    {
+        $driver = $this->webDriver->webDriver;
+        $finished = $this->userContext;
+        if ($finished === null || $this->session === null || $driver === null) {
+            return;
+        }
+        $this->userContext = $this->openUserContextTab($this->session, $driver);
+        $this->session->removeUserContext($finished);
+    }
+
+    /**
+     * @return string the user context the WebDriver module is now in
+     */
+    private function openUserContextTab(BiDiSession $session, RemoteWebDriver $driver): string
+    {
+        $userContext = $session->createUserContext();
+        $driver->switchTo()->window($session->openTab($userContext));
+        return $userContext;
+    }
+
+    /**
      * Connects to the WebDriver module's session when it has started a new one.
      */
     private function follow(): void
@@ -113,6 +173,7 @@ class WebDriverBiDi extends Module
         $this->session?->close();
         $this->session = null;
         $this->sessionId = $sessionId;
+        $this->userContext = null;
         if ($driver === null) {
             return;
         }
