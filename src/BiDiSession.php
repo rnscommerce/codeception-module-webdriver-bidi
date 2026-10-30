@@ -258,8 +258,7 @@ final class BiDiSession
             if ($left <= 0.0) {
                 return false;
             }
-            $recorded = $this->activity->recorded();
-            $this->bidi->waitFor(fn (): bool => $this->activity->recorded() !== $recorded, min($wait, $left));
+            $this->waitForChange(min($wait, $left));
         }
         return true;
     }
