@@ -24,7 +24,10 @@ final class PageActivity
     /** @var array<string, string> each browsing context's window */
     private array $windows = [];
 
-    /** @var array<string, array{string, float}> each request in flight: its window and when it was sent */
+    /**
+     * @var array<string, array{string, float, string, ?string}> each request in flight: its window, when it was sent,
+     *     its browsing context and the navigation it is for
+     */
     private array $inFlight = [];
 
     /** @var array<string, float> */
@@ -40,11 +43,27 @@ final class PageActivity
         $this->windows[$context] = $parent === null ? $context : $this->windowOf($parent);
     }
 
-    public function requestSent(string $request, string $context, float $at): void
+    public function requestSent(string $request, string $context, float $at, ?string $navigation = null): void
     {
         $window = $this->windowOf($context);
-        $this->inFlight[$request] = [$window, $at];
+        $this->inFlight[$request] = [$window, $at, $context, $navigation];
         $this->lastNetwork[$window] = $at;
+        $this->recorded++;
+    }
+
+    /**
+     * Forgets the requests of the document a navigation replaces, and of a window's iframes when the window navigates,
+     * which some browsers never say have ended.
+     */
+    public function navigationStarted(string $context, ?string $navigation): void
+    {
+        $navigatesWindow = $this->windowOf($context) === $context;
+        foreach ($this->inFlight as $request => [$window, , $requestContext, $requestNavigation]) {
+            $replaced = $navigatesWindow ? $window === $context : $requestContext === $context;
+            if ($replaced && ($navigation === null || $requestNavigation !== $navigation)) {
+                unset($this->inFlight[$request]);
+            }
+        }
         $this->recorded++;
     }
 
@@ -62,7 +81,7 @@ final class PageActivity
     }
 
     /**
-     * How many requests and DOM changes have been recorded, which changes whenever quietIn may have.
+     * How many requests, DOM changes and navigations have been recorded, which changes whenever quietIn may have.
      */
     public function recorded(): int
     {

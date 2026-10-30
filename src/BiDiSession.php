@@ -9,6 +9,7 @@ use Rnscommerce\WebDriver\BiDi\BrowsingContext\BrowsingContext;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\ContextCreatedParameters;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\CreateParameters;
 use Rnscommerce\WebDriver\BiDi\BrowsingContext\CreateType;
+use Rnscommerce\WebDriver\BiDi\BrowsingContext\NavigationInfo;
 use Rnscommerce\WebDriver\BiDi\ErrorResponseException;
 use Rnscommerce\WebDriver\BiDi\Module\Browser;
 use Rnscommerce\WebDriver\BiDi\Module\BrowsingContextInspector;
@@ -107,8 +108,9 @@ final class BiDiSession
     }
 
     /**
-     * Waits until any page changes: a request is sent or ends, a DOM changes, something loads, a document's ready
-     * state changes, or a CSS animation or transition starts or ends. Returns false if nothing changed in $timeout.
+     * Waits until any page changes: a navigation starts, a request is sent or ends, a DOM changes, something loads, a
+     * document's ready state changes, or a CSS animation or transition starts or ends. Returns false if nothing
+     * changed in $timeout.
      */
     public function waitForChange(float $timeout): bool
     {
@@ -164,9 +166,12 @@ final class BiDiSession
         $contexts->onBrowsingContextCreated(static function (ContextCreatedParameters $created) use ($activity): void {
             $activity->contextCreated($created->context, $created->parent);
         });
+        $contexts->onNavigationStarted(static function (NavigationInfo $started) use ($activity): void {
+            $activity->navigationStarted($started->context, $started->navigation);
+        });
         $network->onBeforeRequestSent(static function (BeforeRequestSentParameters $sent) use ($activity): void {
             if ($sent->context !== null) {
-                $activity->requestSent($sent->request->request, $sent->context, microtime(true));
+                $activity->requestSent($sent->request->request, $sent->context, microtime(true), $sent->navigation);
             }
         });
         $ended = static function (ResponseCompletedParameters|FetchErrorParameters $ended) use ($activity): void {

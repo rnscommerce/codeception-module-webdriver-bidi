@@ -91,6 +91,15 @@ final class ReadinessCest
         Assert::assertLessThan(0.5, self::timeReadiness($I));
     }
 
+    public function doesNotWaitForARequestOfThePageNavigatedAwayFrom(BrowserTester $I): void
+    {
+        $I->amOnPage('/fetch.html');
+        $I->click('#load');
+        $I->amOnPage('/quiet.html');
+
+        Assert::assertLessThan(0.5, self::timeReadiness($I));
+    }
+
     private static function timeReadiness(BrowserTester $I, ?float $timeout = null): float
     {
         $started = microtime(true);

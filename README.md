@@ -40,6 +40,8 @@ until neither its network nor its DOM has changed for 100 ms, then for its runni
 CSS transitions and animations to end, checking again after any it waited for.
 
 - A request older than 10 s, such as a long poll, is no longer waited for.
+- A request of a page navigated away from is no longer waited for, though Chrome
+  never says it ended.
 - A DOM that keeps changing is no longer waited for once the network has been
   quiet for 1 s.
 - Requests and changes in an iframe count for the window it is in; another

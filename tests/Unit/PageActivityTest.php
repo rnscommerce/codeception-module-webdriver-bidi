@@ -100,4 +100,35 @@ final class PageActivityTest extends TestCase
         self::assertEqualsWithDelta(0.05, $this->activity->quietIn('w', 0.0, 0.6), 1e-9);
         self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 0.0, 0.65), 1e-9);
     }
+
+    public function testAWindowsNavigationForgetsEveryRequestButItsOwn(): void
+    {
+        $this->activity->contextCreated('frame', 'w');
+        $this->activity->requestSent('r', 'w', 0.0);
+        $this->activity->requestSent('f', 'frame', 0.0);
+        $this->activity->requestSent('document', 'w', 0.5, 'n');
+        $this->activity->navigationStarted('w', 'n');
+
+        self::assertGreaterThan(0.0, $this->activity->quietIn('w', 0.0, 1.0));
+
+        $this->activity->requestEnded('document', 'w', 1.0);
+
+        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 0.0, 1.1), 1e-9);
+    }
+
+    public function testAnIframesNavigationForgetsOnlyItsRequests(): void
+    {
+        $this->activity->contextCreated('frame', 'w');
+        $this->activity->requestSent('r', 'w', 0.0);
+        $this->activity->requestSent('f', 'frame', 0.0);
+        $this->activity->navigationStarted('frame', 'n');
+        $this->activity->requestEnded('r', 'w', 1.0);
+
+        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 0.0, 1.1), 1e-9);
+
+        $this->activity->requestSent('r2', 'w', 2.0);
+        $this->activity->navigationStarted('frame', 'n2');
+
+        self::assertGreaterThan(1.0, $this->activity->quietIn('w', 0.0, 2.5));
+    }
 }
