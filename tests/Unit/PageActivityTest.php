@@ -16,11 +16,19 @@ final class PageActivityTest extends TestCase
         $this->activity = new PageActivity();
     }
 
-    public function testAQuietPageIsReadyOnceTheQuietPeriodHasPassed(): void
+    public function testAPageWithNoActivityIsQuiet(): void
     {
-        self::assertEqualsWithDelta(0.1, $this->activity->quietIn('w', 5.0, 5.0), 1e-9);
-        self::assertEqualsWithDelta(0.04, $this->activity->quietIn('w', 5.0, 5.06), 1e-9);
-        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 5.0, 5.1), 1e-9);
+        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 5.0, 5.0), 1e-9);
+    }
+
+    public function testQuietCountsFromTheLastActivityRatherThanFromWhenTheWaitBegan(): void
+    {
+        $this->activity->requestSent('r', 'w', 4.0);
+        $this->activity->requestEnded('r', 'w', 4.8);
+        $this->activity->domChanged('w', 4.94);
+
+        self::assertEqualsWithDelta(0.04, $this->activity->quietIn('w', 5.0, 5.0), 1e-9);
+        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 5.0, 5.04), 1e-9);
     }
 
     public function testARequestInFlightIsWaitedForUntilItEnds(): void
@@ -40,8 +48,7 @@ final class PageActivityTest extends TestCase
         $this->activity->requestSent('r', 'w', 0.0);
 
         self::assertEqualsWithDelta(0.5, $this->activity->quietIn('w', 9.0, 9.5), 1e-9);
-        self::assertEqualsWithDelta(0.1, $this->activity->quietIn('w', 10.0, 10.0), 1e-9);
-        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 10.0, 10.1), 1e-9);
+        self::assertEqualsWithDelta(0.0, $this->activity->quietIn('w', 10.0, 10.0), 1e-9);
     }
 
     public function testTheDomHasToBeQuietToo(): void

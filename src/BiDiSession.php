@@ -38,7 +38,7 @@ final class BiDiSession
     /** How long one wait for running animations lasts at most. */
     private const ANIMATION_CAP_MS = 5000;
 
-    /** How many times quiet is checked again after animations ended. */
+    /** How many times quiet is checked again, after animations ended or activity was heard while checking them. */
     private const ROUNDS = 5;
 
     private const OBSERVE_DOM = <<<'JS'
@@ -102,16 +102,21 @@ final class BiDiSession
     /**
      * Waits until the window's network and DOM are quiet and its finite animations have ended, checking quiet
      * again after any animation it waited for. Returns false if the page is still busy after $timeout.
+     *
+     * Checking the animations is a round trip through the page, which delivers whatever the page did before it, so
+     * quiet is checked again after it too.
      */
     public function waitUntilReady(string $window, float $timeout): bool
     {
         $deadline = microtime(true) + $timeout;
+        $since = $this->now();
         $round = 0;
         do {
-            if (!$this->waitUntilQuiet($window, $deadline)) {
+            if (!$this->waitUntilQuiet($window, $since, $deadline)) {
                 return false;
             }
-        } while ($this->awaitAnimations($window, $deadline) && ++$round < self::ROUNDS);
+            $animated = $this->awaitAnimations($window, $deadline);
+        } while (($animated || !$this->isQuiet($window, $since)) && ++$round < self::ROUNDS);
         return true;
     }
 
@@ -241,9 +246,13 @@ final class BiDiSession
         );
     }
 
-    private function waitUntilQuiet(string $window, float $deadline): bool
+    private function isQuiet(string $window, float $since): bool
     {
-        $since = $this->now();
+        return $this->activity->quietIn($window, $since, $this->now()) <= 0.0;
+    }
+
+    private function waitUntilQuiet(string $window, float $since, float $deadline): bool
+    {
         while (($wait = $this->activity->quietIn($window, $since, $this->now())) > 0.0) {
             $left = $deadline - microtime(true);
             if ($left <= 0.0) {

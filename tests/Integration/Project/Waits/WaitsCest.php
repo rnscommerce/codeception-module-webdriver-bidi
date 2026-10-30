@@ -145,6 +145,26 @@ final class WaitsCest
         self::assertFailsAsTheWebDriverModuleDoes($I, 'waitForJS', 'return true;', 0);
     }
 
+    public function actsOnAPageAlreadyQuietAtOnce(WaitsTester $I): void
+    {
+        $I->amOnPage('/quiet.html');
+
+        $classic = self::timeEach(static fn () => $I->classicWait('click', 'p'));
+        $ready = self::timeEach(static fn () => $I->click('p'));
+        codecept_debug(sprintf('A click took %.3f s, and %.3f s without waiting for the page', $ready, $classic));
+
+        Assert::assertLessThan($classic + 0.05, $ready);
+    }
+
+    private static function timeEach(callable $action): float
+    {
+        $started = microtime(true);
+        for ($i = 0; $i < 20; $i++) {
+            $action();
+        }
+        return (microtime(true) - $started) / 20;
+    }
+
     private static function lagBehindThePage(WaitsTester $I, callable $wait): float
     {
         $wait();

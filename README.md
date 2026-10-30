@@ -41,13 +41,14 @@ $I->waitForPageReady();
 
 `waitForPageReady` waits until the current window has no request in flight, then
 until neither its network nor its DOM has changed for 100 ms, then for its running
-CSS transitions and animations to end, checking again after any it waited for.
+CSS transitions and animations to end, checking again after any it waited for. A
+page that has not changed for 100 ms already is ready at once.
 
 - A request older than 10 s, such as a long poll, is no longer waited for.
 - A request of a page navigated away from is no longer waited for, though Chrome
   never says it ended.
 - A DOM that keeps changing is no longer waited for once the network has been
-  quiet for 1 s.
+  quiet for 1 s of the wait.
 - Requests and changes in an iframe count for the window it is in; another
   window's do not.
 
@@ -93,7 +94,8 @@ rule, so a click never lands on a page still settling:
 
 It waits at most 2 s, then acts anyway: a page that never settles, with an
 animation that keeps restarting or a request that keeps polling, slows each action
-by 2 s but does not fail it. On a quiet page the wait costs about 0.1 s. Waits,
+by 2 s but does not fail it. On a page already quiet the wait costs a few
+milliseconds. Waits,
 assertions, grabbers, navigation and popups are not waited for.
 
 ## Waits that listen

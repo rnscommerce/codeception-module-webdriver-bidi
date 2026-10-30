@@ -8,7 +8,8 @@ use Codeception\Module;
 use Codeception\Module\WebDriver;
 
 /**
- * Runs the WebDriver module's own waits, which WebDriverBiDi's replace in the actor.
+ * Runs the WebDriver module's own actions as a step of another name, so WebDriverBiDi neither replaces its waits
+ * nor waits for the page before it acts.
  */
 final class ClassicWaits extends Module
 {

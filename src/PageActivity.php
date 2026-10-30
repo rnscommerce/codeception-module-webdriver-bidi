@@ -91,7 +91,8 @@ final class PageActivity
     /**
      * Seconds until the window could be quiet if nothing more happened, or 0 when it is quiet now: no request in
      * flight and the network quiet, and the DOM quiet or the network quiet long enough to stop waiting for it.
-     * Nothing before $since counts as quiet time.
+     * Quiet counts from the last activity, except that the network's quiet ends the wait for the DOM only from
+     * $since on.
      */
     public function quietIn(string $window, float $since, float $now): float
     {
@@ -105,10 +106,11 @@ final class PageActivity
         if ($staleIn !== null) {
             return $staleIn;
         }
-        $networkQuietFor = $now - max($this->lastNetwork[$window] ?? $since, $since);
-        $domQuietFor = $now - max($this->lastDom[$window] ?? $since, $since);
+        $networkQuietFor = $now - ($this->lastNetwork[$window] ?? -INF);
+        $domQuietFor = $now - ($this->lastDom[$window] ?? -INF);
         $quietIn = max(self::NETWORK_QUIET - $networkQuietFor, self::DOM_QUIET - $domQuietFor);
-        return max(0.0, min($quietIn, self::DOM_BUSY_CAP - $networkQuietFor));
+        $domWaitedFor = $now - max($this->lastNetwork[$window] ?? $since, $since);
+        return max(0.0, min($quietIn, self::DOM_BUSY_CAP - $domWaitedFor));
     }
 
     private function windowOf(string $context): string
