@@ -70,6 +70,11 @@ abstract class CodeceptionTestCase extends TestCase
         $this->runSuite('Actionability');
     }
 
+    public function testAssertions(): void
+    {
+        $this->runSuite('Assertions');
+    }
+
     public function testWaitingBeforeTheActionsASuiteAdds(): void
     {
         $this->runSuite('Actions');

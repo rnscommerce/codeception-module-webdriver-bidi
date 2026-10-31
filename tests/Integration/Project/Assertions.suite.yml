@@ -1,0 +1,11 @@
+actor: AssertionsTester
+modules:
+    enabled:
+        - WebDriver
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
+              assertion_timeout: 2
+        - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\ClassicAssertions
+        - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\SecretFields
+    config:
+        WebDriver:
+            wait: 0

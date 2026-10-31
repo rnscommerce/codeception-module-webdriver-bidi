@@ -163,12 +163,62 @@ A module that waits on its own behalf can find this one among the enabled module
 and call its waits and `waitForPageReady` instead, once `_hasBiDi()` says the
 session has BiDi.
 
+## Assertions that retry
+
+The module answers the WebDriver module's assertions about the page, and checks
+each again while it fails, as Playwright's [web-first assertions](https://playwright.dev/docs/test-assertions)
+do. A check is the WebDriver module's own, run on the module listed before this
+one, so the condition and the message are those of MFTF's `MagentoWebDriver` where
+it overrides an assertion.
+
+- Content: `see`, `dontSee`, `seeInSource`, `dontSeeInSource`, `seeInPageSource`,
+  `dontSeeInPageSource`
+- Elements: `seeElement`, `dontSeeElement`, `seeElementInDOM`,
+  `dontSeeElementInDOM`, `seeNumberOfElements`, `seeNumberOfElementsInDOM`
+- Fields and options: `seeInField`, `dontSeeInField`, `seeInFormFields`,
+  `dontSeeInFormFields`, `seeCheckboxIsChecked`, `dontSeeCheckboxIsChecked`,
+  `seeOptionIsSelected`, `dontSeeOptionIsSelected`
+- Links and the title: `seeLink`, `dontSeeLink`, `seeInTitle`, `dontSeeInTitle`
+- The URL: `seeInCurrentUrl`, `dontSeeInCurrentUrl`, `seeCurrentUrlEquals`,
+  `dontSeeCurrentUrlEquals`, `seeCurrentUrlMatches`, `dontSeeCurrentUrlMatches`
+
+An assertion that holds returns at once. One that fails is checked again when the
+page changes, as the waits are, until it holds or `assertion_timeout` ends, 5 s
+by default, and then fails with its last failure, unchanged. A `dontSee` waits for
+what it should not see to go. `canSee` and the other conditional assertions retry
+too, so one that fails takes the timeout. `assertion_timeout: 0` checks once.
+
+```yaml
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
+              assertion_timeout: 5
+```
+
+Each check finds its elements as the WebDriver module does, so with its `wait`
+above 0, a check of an element not there waits that long before it fails.
+Assertions on popups, tabs and cookies, and the `grab` actions, are left to the
+WebDriver module and checked once.
+
+A suite's own assertion retries by passing it to `_retryAssertion` from a module
+listed after this one, which finds each module by its name as the suite lists it.
+For MFTF's `seeInSecretField`:
+
+```php
+public function seeInSecretField(string $field, string $value): void
+{
+    $magento = $this->getModule('\\' . MagentoWebDriver::class);
+    $this->getModule('\\' . WebDriverBiDi::class)->_retryAssertion(
+        static fn () => $magento->seeInSecretField($field, $value),
+    );
+}
+```
+
 ## What it needs from the driver
 
 A driver that speaks WebDriver BiDi. A session without it, such as one a helper
 starts with capabilities of its own or with `_restart` and a new config, goes on
-without BiDi: actions are not checked, `waitForPageReady` returns at
-once, and the seven waits are the WebDriver module's own.
+without BiDi: actions are not checked, assertions are checked once,
+`waitForPageReady` returns at once, and the seven waits are the WebDriver
+module's own.
 
 It has been tested locally with ChromeDriver 156 and geckodriver 0.37 with
 Firefox 158. CI runs against whichever drivers its runner image carries.

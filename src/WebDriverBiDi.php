@@ -17,12 +17,14 @@ use Codeception\TestInterface;
 use Codeception\Util\Locator;
 use Facebook\WebDriver\Exception\NoSuchElementException;
 use Facebook\WebDriver\Exception\PhpWebDriverExceptionInterface;
+use Facebook\WebDriver\Exception\StaleElementReferenceException;
 use Facebook\WebDriver\Exception\TimeoutException;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverElement;
 use Facebook\WebDriver\WebDriverExpectedCondition;
 use InvalidArgumentException;
+use PHPUnit\Framework\AssertionFailedError;
 use Rnscommerce\WebDriver\BiDi\BiDiException;
 
 /**
@@ -31,6 +33,8 @@ use Rnscommerce\WebDriver\BiDi\BiDiException;
  */
 class WebDriverBiDi extends Module
 {
+    use RetriedAssertions;
+
     /** How soon a wait checks again after the page changed, for what the page's own code does next. */
     private const AFTER_CHANGE = 0.1;
 
@@ -41,7 +45,7 @@ class WebDriverBiDi extends Module
     private const RECHECK = 1.0;
 
     /** @var array<string, mixed> */
-    protected array $config = ['action_timeout' => 10, 'actions' => []];
+    protected array $config = ['action_timeout' => 10, 'actions' => [], 'assertion_timeout' => 5];
 
     private Actionability $actionability;
 
@@ -81,7 +85,7 @@ class WebDriverBiDi extends Module
         if ($targets === []) {
             return;
         }
-        $timeout = $this->actionTimeout();
+        $timeout = $this->seconds('action_timeout');
         $deadline = microtime(true) + $timeout;
         $unmet = null;
         $this->tolerate(function () use ($session, $driver, $targets, $deadline, &$unmet): void {
@@ -125,6 +129,38 @@ class WebDriverBiDi extends Module
     {
         $this->follow();
         return $this->session !== null && !$this->session->isClosed();
+    }
+
+    /**
+     * Runs an assertion, and runs it again whenever the page changes while it fails, until it holds or
+     * assertion_timeout ends, then throws its last failure. Without BiDi, it runs it once.
+     *
+     * A suite's own module retries its assertions by passing them here.
+     *
+     * @param Closure(): mixed $assertion
+     */
+    public function _retryAssertion(Closure $assertion): void
+    {
+        $this->follow();
+        $session = $this->session;
+        $timeout = $this->seconds('assertion_timeout');
+        if ($session === null || $session->isClosed() || $timeout <= 0.0) {
+            $assertion();
+            return;
+        }
+        $failure = null;
+        $held = $this->poll($session, static function () use ($assertion, &$failure): bool {
+            try {
+                $assertion();
+                return true;
+            } catch (AssertionFailedError | StaleElementReferenceException $e) {
+                $failure = $e;
+                return false;
+            }
+        }, $timeout);
+        if (!$held && $failure !== null) {
+            throw $failure;
+        }
     }
 
     /**
@@ -268,8 +304,10 @@ class WebDriverBiDi extends Module
     protected function validateConfig(): void
     {
         parent::validateConfig();
-        if (!is_numeric($this->config['action_timeout']) || $this->config['action_timeout'] < 0) {
-            throw new ModuleConfigException($this, 'action_timeout has to be a number of seconds');
+        foreach (['action_timeout', 'assertion_timeout'] as $timeout) {
+            if (!is_numeric($this->config[$timeout]) || $this->config[$timeout] < 0) {
+                throw new ModuleConfigException($this, "{$timeout} has to be a number of seconds");
+            }
         }
         try {
             $this->actionability = Actionability::configure($this->config['actions']);
@@ -366,10 +404,19 @@ class WebDriverBiDi extends Module
         return $locator instanceof WebDriverElement ? 'the element' : Locator::humanReadableString($locator);
     }
 
-    private function actionTimeout(): float
+    /**
+     * @param list<mixed> $arguments
+     */
+    private function retryAssertion(string $assertion, array $arguments): void
     {
-        $timeout = $this->config['action_timeout'];
-        return is_numeric($timeout) ? (float) $timeout : 0.0;
+        $webDriver = $this->webDriver;
+        $this->_retryAssertion(static fn (): mixed => $webDriver->{$assertion}(...$arguments));
+    }
+
+    private function seconds(string $timeout): float
+    {
+        $seconds = $this->config[$timeout];
+        return is_numeric($seconds) ? (float) $seconds : 0.0;
     }
 
     private function findWebDriver(): WebDriver
@@ -542,23 +589,38 @@ class WebDriverBiDi extends Module
             throw new TimeoutException($message);
         }
         $check = $condition instanceof WebDriverExpectedCondition ? $condition->getApply() : $condition;
-        $deadline = microtime(true) + $timeout;
-        $changed = true;
         $notFound = null;
-        while (true) {
+        $held = $this->poll($session, static function () use ($check, $driver, &$notFound): bool {
             try {
-                if ($check($driver)) {
-                    return;
-                }
+                return (bool) $check($driver);
             } catch (NoSuchElementException $e) {
                 $notFound = $e;
+                return false;
             }
+        }, $timeout);
+        if (!$held) {
+            throw $notFound ?? new TimeoutException($message);
+        }
+    }
+
+    /**
+     * Checks once, then again only when the page changes, once shortly after it stops changing, and otherwise after
+     * a silence, until the check holds or the timeout ends.
+     *
+     * @param Closure(): bool $check
+     */
+    private function poll(BiDiSession $session, Closure $check, float $timeout): bool
+    {
+        $deadline = microtime(true) + $timeout;
+        $changed = true;
+        while (!$check()) {
             $left = $deadline - microtime(true);
             if ($left <= 0.0) {
-                throw $notFound ?? new TimeoutException($message);
+                return false;
             }
             $changed = $session->waitForChange(min($left, $changed ? self::AFTER_CHANGE : self::SILENCE));
         }
+        return true;
     }
 
     /**

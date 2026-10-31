@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>late</title>
+<p id="ready">Ready</p>
+<p id="notice"></p>
+<div id="rates"></div>
+<input id="name">
+<p id="spinner">Loading</p>
+<ul id="items"><li>one</li></ul>
+<script>
+  setTimeout(() => {
+    document.getElementById('notice').textContent = 'Saved';
+    document.getElementById('rates').innerHTML = '<span class="mselect-item">US-CA-*-Rate 1</span>';
+    document.getElementById('name').value = 'Ada';
+    document.getElementById('spinner').remove();
+    document.getElementById('items').insertAdjacentHTML('beforeend', '<li>two</li><li>three</li>');
+    history.pushState(null, '', '?saved=1');
+  }, 800);
+</script>
