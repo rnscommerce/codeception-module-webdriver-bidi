@@ -83,7 +83,7 @@ window in it, whether the test passed or failed.
 - Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
   in the current test's user context.
 
-## Act and read on a settled page
+## Act on a settled page
 
 Every action that acts on the page waits for it to be ready first, by the same
 rule, so a click never lands on a page still settling:
@@ -93,14 +93,8 @@ rule, so a click never lands on a page still settling:
 `fillField`, `moveMouseOver`, `pressKey`, `selectOption`, `submitForm`, `type`,
 `uncheckOption` and `unselectOption`.
 
-So does every assertion and grabber that reads the page, its URL or its
-cookies, so a check never reads a page still being built: the `see*` and
-`dontSee*` assertions, and `grabTextFrom`, `grabAttributeFrom`, `grabValueFrom`,
-`grabMultiple`, `grabPageSource`, `grabFromCurrentUrl` and `grabCookie`. Those
-about popups and tabs are left out.
-
-A suite whose own modules add actions or assertions that read or act on the
-page names them in `wait_before_actions`, and they wait the same way:
+A suite whose own modules add actions that act on the page names them in
+`wait_before_actions`, and they wait the same way:
 
 ```yaml
         - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
@@ -110,7 +104,8 @@ page names them in `wait_before_actions`, and they wait the same way:
 It waits at most 2 s, then acts anyway: a page that never settles, with an
 animation that keeps restarting or a request that keeps polling, slows each action
 by 2 s but does not fail it. On a page already quiet the wait costs a few
-milliseconds. Waits, navigation and popups are not waited for.
+milliseconds. Waits,
+assertions, grabbers, navigation and popups are not waited for.
 
 ## Waits that listen
 
