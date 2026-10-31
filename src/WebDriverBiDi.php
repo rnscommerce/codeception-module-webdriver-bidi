@@ -41,6 +41,18 @@ class WebDriverBiDi extends Module
         'selectOption', 'submitForm', 'type', 'uncheckOption', 'unselectOption',
     ];
 
+    /** The assertions and grabbers that read the page, each read only once the page is ready, as an action is. */
+    private const CHECKS = [
+        'see', 'dontSee', 'seeInSource', 'dontSeeInSource', 'seeInPageSource', 'dontSeeInPageSource', 'seeLink',
+        'dontSeeLink', 'seeInCurrentUrl', 'dontSeeInCurrentUrl', 'seeCurrentUrlEquals', 'dontSeeCurrentUrlEquals',
+        'seeCurrentUrlMatches', 'dontSeeCurrentUrlMatches', 'grabFromCurrentUrl', 'seeCheckboxIsChecked',
+        'dontSeeCheckboxIsChecked', 'seeInField', 'dontSeeInField', 'seeInFormFields', 'dontSeeInFormFields',
+        'seeElement', 'dontSeeElement', 'seeElementInDOM', 'dontSeeElementInDOM', 'seeNumberOfElements',
+        'seeNumberOfElementsInDOM', 'seeOptionIsSelected', 'dontSeeOptionIsSelected', 'seeInTitle',
+        'dontSeeInTitle', 'seeCookie', 'dontSeeCookie', 'grabCookie', 'grabTextFrom', 'grabAttributeFrom',
+        'grabValueFrom', 'grabMultiple', 'grabPageSource',
+    ];
+
     /** How long an action waits for the page to be ready before it acts on a page still busy. */
     private const READY_BEFORE_ACTING = 2.0;
 
@@ -275,6 +287,7 @@ class WebDriverBiDi extends Module
     {
         $configured = $this->config['wait_before_actions'];
         return in_array($action, self::ACTIONS, true)
+            || in_array($action, self::CHECKS, true)
             || (is_array($configured) && in_array($action, $configured, true));
     }
 

@@ -23,6 +23,14 @@ final class ReadinessCest
         Assert::assertGreaterThan(0.9, $elapsed);
     }
 
+    public function anAssertionReadsThePageOnlyOnceItIsReady(BrowserTester $I): void
+    {
+        $I->amOnPage('/fetch.html');
+        $I->click('#load');
+
+        $I->see('done', '#result');
+    }
+
     public function waitsForATransitionToEnd(BrowserTester $I): void
     {
         $I->amOnPage('/transition.html');
