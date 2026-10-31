@@ -10,7 +10,7 @@ use Facebook\WebDriver\WebDriverElement;
 /**
  * An element an action acts on: how the WebDriver module finds it, and the checks it has to pass first.
  */
-final readonly class ActionTarget
+final class ActionTarget
 {
     /**
      * @param 'clickable'|'field'|'checkable'|'element' $finder
@@ -19,10 +19,10 @@ final readonly class ActionTarget
      * @param list<string> $checks
      */
     public function __construct(
-        public string $finder,
-        public string|array|WebDriverBy|WebDriverElement $locator,
-        public string|array|WebDriverBy|null $context,
-        public array $checks,
+        public readonly string $finder,
+        public readonly string|array|WebDriverBy|WebDriverElement $locator,
+        public readonly string|array|WebDriverBy|null $context,
+        public readonly array $checks,
     ) {
     }
 }

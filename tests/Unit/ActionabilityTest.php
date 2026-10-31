@@ -51,6 +51,8 @@ final class ActionabilityTest extends TestCase
 
     /**
      * @param list<mixed> $arguments
+     *
+     * @dataProvider noTargets
      */
     #[DataProvider('noTargets')]
     public function testNothingIsCheckedForAnActionWithoutAnElement(string $action, array $arguments): void
@@ -90,6 +92,9 @@ final class ActionabilityTest extends TestCase
         yield 'an argument that is no position' => [['rapidClick' => ['like' => 'click', 'argument' => '0']]];
     }
 
+    /**
+     * @dataProvider misconfigured
+     */
     #[DataProvider('misconfigured')]
     public function testAMisconfiguredActionIsRefused(mixed $configured): void
     {

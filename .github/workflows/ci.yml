@@ -26,6 +26,41 @@ jobs:
       - name: Unit tests
         run: composer test
 
+  lowest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer
+          coverage: none
+      - run: composer update --no-interaction --prefer-lowest --prefer-stable
+      - name: Lint every file
+        run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+      - name: Unit tests
+        run: composer test
+
+  mftf-4-7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer
+          coverage: none
+      - name: Pin what MFTF 4.7 locks
+        run: composer require --no-update codeception/codeception:5.0.13 codeception/module-webdriver:3.2.1 php-webdriver/webdriver:1.15.1
+      - run: composer update --no-interaction
+      - name: Unit tests
+        run: composer test
+      - name: Locate the runner's drivers
+        run: |
+          echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver" >> "$GITHUB_ENV"
+          echo "GECKODRIVER=$GECKOWEBDRIVER/geckodriver" >> "$GITHUB_ENV"
+      - run: composer test:integration
+
   integration:
     runs-on: ubuntu-latest
     steps:
