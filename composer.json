@@ -1,6 +1,6 @@
 {
   "name": "rnscommerce/codeception-module-webdriver-bidi",
-  "description": "A Codeception module that adds WebDriver BiDi to the WebDriver module: page readiness, event-driven waits and user contexts.",
+  "description": "A Codeception module that adds WebDriver BiDi to the WebDriver module: actionability checks, page readiness, event-driven waits and user contexts.",
   "type": "library",
   "license": "MIT",
   "repositories": [

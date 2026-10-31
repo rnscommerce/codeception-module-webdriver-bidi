@@ -6,6 +6,8 @@ namespace Rnscommerce\Codeception\WebDriverBiDi;
 
 use Amp\Http\Client\HttpException;
 use Closure;
+use Codeception\Exception\ElementNotFound;
+use Codeception\Exception\MalformedLocatorException;
 use Codeception\Exception\ModuleConfigException;
 use Codeception\Exception\ModuleException;
 use Codeception\Module;
@@ -20,6 +22,7 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverElement;
 use Facebook\WebDriver\WebDriverExpectedCondition;
+use InvalidArgumentException;
 use Rnscommerce\WebDriver\BiDi\BiDiException;
 
 /**
@@ -34,18 +37,13 @@ class WebDriverBiDi extends Module
     /** How long a wait goes without checking while nothing is seen to change on the page. */
     private const SILENCE = 0.5;
 
-    /** The actions that act on the page, each taken only once the page is ready, or once READY_BEFORE_ACTING ends. */
-    private const ACTIONS = [
-        'appendField', 'attachFile', 'checkOption', 'clearField', 'click', 'clickWithLeftButton',
-        'clickWithRightButton', 'doubleClick', 'dragAndDrop', 'fillField', 'moveMouseOver', 'pressKey',
-        'selectOption', 'submitForm', 'type', 'uncheckOption', 'unselectOption',
-    ];
-
-    /** How long an action waits for the page to be ready before it acts on a page still busy. */
-    private const READY_BEFORE_ACTING = 2.0;
+    /** How long the page waits for an element to become actionable before it is found again. */
+    private const RECHECK = 1.0;
 
     /** @var array<string, mixed> */
-    protected array $config = ['wait_before_actions' => []];
+    protected array $config = ['action_timeout' => 10, 'actions' => []];
+
+    private Actionability $actionability;
 
     private WebDriver $webDriver;
 
@@ -79,17 +77,22 @@ class WebDriverBiDi extends Module
         if ($session === null || $session->isClosed() || $driver === null) {
             return;
         }
-        if (!$this->actsOnThePage($step->getAction())) {
+        $targets = $this->actionability->targets($step->getAction(), $step->getArguments());
+        if ($targets === []) {
             return;
         }
-        $this->tolerate(function () use ($session, $driver): void {
-            if (!$session->waitUntilReady($driver->getWindowHandle(), self::READY_BEFORE_ACTING)) {
-                $this->debugSection(
-                    'BiDi',
-                    sprintf('Acting on a page still busy after %s s', self::READY_BEFORE_ACTING),
-                );
+        $timeout = $this->actionTimeout();
+        $deadline = microtime(true) + $timeout;
+        $unmet = null;
+        $this->tolerate(function () use ($session, $driver, $targets, $deadline, &$unmet): void {
+            $window = $driver->getWindowHandle();
+            foreach ($targets as $target) {
+                $unmet ??= $this->waitUntilActionable($session, $window, $target, $deadline);
             }
         });
+        if ($unmet !== null) {
+            throw new TimeoutException(sprintf('%s waited %s s for %s', $step->getAction(), $timeout, $unmet));
+        }
     }
 
     public function _afterStep(Step $step): void
@@ -265,17 +268,108 @@ class WebDriverBiDi extends Module
     protected function validateConfig(): void
     {
         parent::validateConfig();
-        $actions = $this->config['wait_before_actions'];
-        if (!is_array($actions) || !array_is_list($actions) || array_filter($actions, 'is_string') !== $actions) {
-            throw new ModuleConfigException($this, 'wait_before_actions has to be a list of action names');
+        if (!is_numeric($this->config['action_timeout']) || $this->config['action_timeout'] < 0) {
+            throw new ModuleConfigException($this, 'action_timeout has to be a number of seconds');
+        }
+        try {
+            $this->actionability = Actionability::configure($this->config['actions']);
+        } catch (InvalidArgumentException $e) {
+            throw new ModuleConfigException($this, $e->getMessage());
         }
     }
 
-    private function actsOnThePage(string $action): bool
+    /**
+     * Finds the target again whenever it leaves the page or the page waits RECHECK, until it passes its checks.
+     * One never found by the deadline is left to the action, to fail as it does without BiDi.
+     *
+     * @return string|null the target and the check it still fails at the deadline, or null to act
+     */
+    private function waitUntilActionable(
+        BiDiSession $session,
+        string $window,
+        ActionTarget $target,
+        float $deadline,
+    ): ?string {
+        while (true) {
+            $element = $this->find($target);
+            $left = $deadline - microtime(true);
+            if ($element === null) {
+                if ($left <= 0.0) {
+                    return null;
+                }
+                $session->waitForChange(min($left, self::SILENCE));
+                continue;
+            }
+            if ($target->checks === []) {
+                return null;
+            }
+            $state = $session->awaitActionable(
+                $window,
+                $element->getID(),
+                $target->checks,
+                max(0.0, min($left, self::RECHECK)),
+            );
+            if ($state === BiDiSession::READY) {
+                return null;
+            }
+            if (microtime(true) >= $deadline) {
+                return $state === BiDiSession::DETACHED
+                    ? null
+                    : sprintf('%s, which %s', $this->describe($target->locator), $state);
+            }
+        }
+    }
+
+    /**
+     * Finds the target as its action does, without waiting for it.
+     */
+    private function find(ActionTarget $target): ?WebDriverElement
     {
-        $configured = $this->config['wait_before_actions'];
-        return in_array($action, self::ACTIONS, true)
-            || (is_array($configured) && in_array($action, $configured, true));
+        return Closure::bind(
+            static function (WebDriver $module) use ($target): ?WebDriverElement {
+                $locator = $target->locator;
+                if ($locator instanceof WebDriverElement) {
+                    return $locator;
+                }
+                // The WebDriver module waits implicitly for what it finds when its wait is set; this waits itself.
+                $wait = $module->config['wait'];
+                $module->config['wait'] = 0;
+                try {
+                    $driver = $module->webDriver;
+                    if ($target->finder === 'clickable' && $driver !== null) {
+                        $page = $target->context === null
+                            ? $driver
+                            : $module->matchFirstOrFail($driver, $target->context);
+                        return $module->_findClickable($page, $locator) ?? $module->match($page, $locator)[0] ?? null;
+                    }
+                    return match ($target->finder) {
+                        'field' => $module->findField($locator),
+                        'checkable' => $module->findCheckable($module->getBaseElement(), $locator),
+                        default => $module->matchFirstOrFail($module->getBaseElement(), $locator),
+                    };
+                } catch (ElementNotFound | MalformedLocatorException | NoSuchElementException) {
+                    return null;
+                } finally {
+                    $module->config['wait'] = $wait;
+                }
+            },
+            null,
+            WebDriver::class,
+        )($this->webDriver);
+    }
+
+    /**
+     * @param string|array<string, string>|WebDriverBy|WebDriverElement $locator
+     */
+    private function describe(string|array|WebDriverBy|WebDriverElement $locator): string
+    {
+        return $locator instanceof WebDriverElement ? 'the element' : Locator::humanReadableString($locator);
+    }
+
+    private function actionTimeout(): float
+    {
+        $timeout = $this->config['action_timeout'];
+        return is_numeric($timeout) ? (float) $timeout : 0.0;
     }
 
     private function findWebDriver(): WebDriver

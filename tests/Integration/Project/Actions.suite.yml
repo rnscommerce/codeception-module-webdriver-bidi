@@ -3,5 +3,7 @@ modules:
     enabled:
         - WebDriver
         - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
-              wait_before_actions: [listedClick]
+              actions:
+                  listedClick: {like: click}
+                  listedClickOn: {like: click, argument: 1}
         - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\CustomActions

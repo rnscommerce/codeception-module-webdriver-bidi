@@ -10,12 +10,22 @@ use Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\Acti
 
 final class ActionsCest
 {
-    public function anActionInWaitBeforeActionsWaitsForTheTransitionInItsWay(ActionsTester $I): void
+    public function anActionNamedInActionsWaitsForTheTransitionInItsWay(ActionsTester $I): void
     {
         $I->amOnPage('/transition.html?duration=1.5s');
         $I->click('#open');
 
         $I->listedClick('#confirm');
+
+        Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
+    }
+
+    public function anActionNamedInActionsFindsItsElementInTheArgumentNamed(ActionsTester $I): void
+    {
+        $I->amOnPage('/transition.html?duration=1.5s');
+        $I->click('#open');
+
+        $I->listedClickOn('the curtain has to open first', '#confirm');
 
         Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
     }

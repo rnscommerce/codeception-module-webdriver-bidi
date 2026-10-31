@@ -8,11 +8,16 @@ use Codeception\Module;
 use Codeception\Module\WebDriver;
 
 /**
- * Two actions a suite's own module adds, which click alike; only listedClick is in wait_before_actions.
+ * Actions a suite's own module adds, which click alike; listedClick and listedClickOn are named in actions.
  */
 final class CustomActions extends Module
 {
     public function listedClick(string $selector): void
+    {
+        $this->click($selector);
+    }
+
+    public function listedClickOn(string $note, string $selector): void
     {
         $this->click($selector);
     }

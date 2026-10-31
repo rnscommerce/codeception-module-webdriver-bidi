@@ -19,11 +19,15 @@ use Rnscommerce\WebDriver\BiDi\Module\Script;
 use Rnscommerce\WebDriver\BiDi\Network\BeforeRequestSentParameters;
 use Rnscommerce\WebDriver\BiDi\Network\FetchErrorParameters;
 use Rnscommerce\WebDriver\BiDi\Network\ResponseCompletedParameters;
+use Rnscommerce\WebDriver\BiDi\Script\ArrayLocalValue;
 use Rnscommerce\WebDriver\BiDi\Script\ChannelProperties;
 use Rnscommerce\WebDriver\BiDi\Script\ChannelValue;
 use Rnscommerce\WebDriver\BiDi\Script\EvaluationResultSuccess;
+use Rnscommerce\WebDriver\BiDi\Script\LocalValue;
 use Rnscommerce\WebDriver\BiDi\Script\MessageParameters;
 use Rnscommerce\WebDriver\BiDi\Script\NumberValue;
+use Rnscommerce\WebDriver\BiDi\Script\SharedReference;
+use Rnscommerce\WebDriver\BiDi\Script\StringValue;
 
 /**
  * The BiDi connection to one WebDriver session, following the activity of its pages.
@@ -76,6 +80,96 @@ final class BiDiSession
             return Promise.race([finished, cap]).then(() => running.length);
         }
         JS;
+
+    /**
+     * Resolves with "ready" once the element passes the checks, "detached" once it leaves the document, or what it
+     * fails when the cap is reached. Checked again on every animation frame and every DOM change.
+     */
+    private const AWAIT_ACTIONABLE = <<<'JS'
+        (element, checks, cap) => element === null ? 'elsewhere' : new Promise((resolve) => {
+            const wanted = new Set(checks);
+            let last = element.getBoundingClientRect();
+            let stable = false;
+            let scrolled = false;
+            let finished = false;
+            const describe = (node) => {
+                const tag = node.cloneNode(false).outerHTML;
+                return tag.length > 120 ? tag.slice(0, 119) + '…' : tag;
+            };
+            const covered = () => {
+                let box = element.getClientRects()[0];
+                const inView = (b) => {
+                    const x = (Math.max(b.left, 0) + Math.min(b.right, innerWidth)) / 2;
+                    const y = (Math.max(b.top, 0) + Math.min(b.bottom, innerHeight)) / 2;
+                    return x >= 0 && x < innerWidth && y >= 0 && y < innerHeight ? [x, y] : null;
+                };
+                let point = box && inView(box);
+                if (!point && !scrolled) {
+                    // Where WebDriver scrolls an element it acts on.
+                    element.scrollIntoView({ block: 'end', inline: 'nearest' });
+                    scrolled = true;
+                    box = element.getClientRects()[0];
+                    point = box && inView(box);
+                }
+                if (!point) return 'is outside the viewport';
+                const root = element.getRootNode();
+                const hit = (root.elementFromPoint ? root : document).elementFromPoint(...point);
+                for (let node = hit; node; node = node.parentNode ?? node.host) {
+                    if (node === element) return null;
+                }
+                return hit ? `is covered by ${describe(hit)}` : 'is outside the viewport';
+            };
+            const unmet = () => {
+                const box = element.getBoundingClientRect();
+                if (wanted.has('visible')
+                    && !(box.width > 0 && box.height > 0 && element.checkVisibility({ visibilityProperty: true }))) {
+                    return 'is not visible';
+                }
+                if ((wanted.has('enabled') || wanted.has('editable'))
+                    && (element.matches(':disabled') || element.closest('[aria-disabled="true"]'))) {
+                    return 'is disabled';
+                }
+                if (wanted.has('editable') && (element.matches('input[readonly], textarea[readonly], select[readonly]')
+                    || element.getAttribute('aria-readonly') === 'true')) {
+                    return 'is not editable';
+                }
+                // A hidden document draws no frames to compare.
+                if (wanted.has('stable') && !stable && !document.hidden) return 'is not stable';
+                return wanted.has('receivesEvents') ? covered() : null;
+            };
+            const finish = (state) => {
+                finished = true;
+                observer.disconnect();
+                clearTimeout(timer);
+                resolve(state);
+            };
+            const check = () => {
+                if (finished) return;
+                if (!element.isConnected) return finish('detached');
+                if (unmet() === null) finish('ready');
+            };
+            const frame = () => {
+                if (finished) return;
+                const box = element.getBoundingClientRect();
+                stable = box.x === last.x && box.y === last.y && box.width === last.width && box.height === last.height;
+                last = box;
+                check();
+                requestAnimationFrame(frame);
+            };
+            const observer = new MutationObserver(check);
+            const timer = setTimeout(() => finish(element.isConnected ? unmet() ?? 'ready' : 'detached'), cap);
+            observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+            check();
+            if (!finished) requestAnimationFrame(frame);
+        })
+        JS;
+
+    public const READY = 'ready';
+
+    public const DETACHED = 'detached';
+
+    /** What Firefox's page is given for an element of another document, where Chrome answers "no such node". */
+    private const ELSEWHERE = 'elsewhere';
 
     /** Seconds the browser's clock is ahead of this process's, which its events' times are converted by. */
     private float $clockOffset = 0.0;
@@ -131,6 +225,32 @@ final class BiDiSession
         return $this->bidi->waitFor(fn (): bool => $this->activity->recorded() !== $recorded, $timeout);
     }
 
+    /**
+     * Waits in the page, at most $cap seconds, until the element passes the checks.
+     *
+     * @param string $element a WebDriver element id, which is the element's BiDi shared id
+     * @param list<string> $checks
+     * @return string READY, DETACHED, or the check the element still fails, such as "is disabled"
+     */
+    public function awaitActionable(string $window, string $element, array $checks, float $cap): string
+    {
+        $arguments = [
+            new SharedReference($element),
+            new ArrayLocalValue(array_map(static fn (string $check): StringValue => new StringValue($check), $checks)),
+            new NumberValue((int) (1000 * $cap)),
+        ];
+        // An element in a frame is found only in that frame's browsing context.
+        $contexts = [$window];
+        while (($context = array_shift($contexts)) !== null) {
+            $state = $this->awaitActionableIn($context, $arguments);
+            if ($state !== null) {
+                return $state;
+            }
+            $contexts = $context === $window ? $this->framesOf($window) : $contexts;
+        }
+        return self::DETACHED;
+    }
+
     public function drain(): void
     {
         if (!$this->bidi->isClosed()) {
@@ -176,6 +296,42 @@ final class BiDiSession
     public function closeWindow(string $window): void
     {
         (new BrowsingContext($this->bidi, $window))->close();
+    }
+
+    /**
+     * @param list<LocalValue> $arguments
+     * @return string|null the element's state, or null when the element is not in the browsing context's document
+     */
+    private function awaitActionableIn(string $context, array $arguments): ?string
+    {
+        try {
+            $result = $this->script->callFunctionInBrowsingContext($context, self::AWAIT_ACTIONABLE, true, $arguments);
+        } catch (ErrorResponseException $e) {
+            if ($e->getError() === 'no such node') {
+                return null;
+            }
+            throw $e;
+        }
+        $state = $result instanceof EvaluationResultSuccess && $result->result instanceof StringValue
+            ? $result->result->value
+            : throw new BiDiException('The actionability check failed in the page');
+        return $state === self::ELSEWHERE ? null : $state;
+    }
+
+    /**
+     * @return list<string> the browsing contexts of the window's frames, at any depth
+     */
+    private function framesOf(string $window): array
+    {
+        $frames = [];
+        $infos = (new BrowsingContext($this->bidi, $window))->getTree();
+        while (($info = array_shift($infos)) !== null) {
+            foreach ($info->children ?? [] as $child) {
+                $frames[] = $child->context;
+                $infos[] = $child;
+            }
+        }
+        return $frames;
     }
 
     /**

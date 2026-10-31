@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>disabled</title>
+<button id="save" disabled>Save</button>
+<p id="result">waiting</p>
+<script>
+  document.getElementById('save').addEventListener('click', () => { document.getElementById('result').textContent = 'saved'; });
+  setTimeout(() => { document.getElementById('save').disabled = false; }, 800);
+</script>

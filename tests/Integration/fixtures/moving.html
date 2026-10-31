@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>moving</title>
+<style>
+  #save { margin-left: 300px; transition: transform 1s linear; transform: translateX(-300px); }
+  #save.in { transform: none; }
+</style>
+<button id="save">Save</button>
+<p id="result">waiting</p>
+<script>
+  const save = document.getElementById('save');
+  save.addEventListener('click', () => {
+    document.getElementById('result').textContent = save.getAnimations().length > 0 ? 'clicked while moving' : 'saved';
+  });
+  save.getBoundingClientRect();
+  save.classList.add('in');
+</script>

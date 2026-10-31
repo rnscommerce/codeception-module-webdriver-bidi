@@ -59,20 +59,6 @@ final class ReadinessCest
         Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
     }
 
-    public function aClickOnAPageThatNeverSettlesWaitsOnlySoLong(BrowserTester $I): void
-    {
-        $I->amOnPage('/perpetual.html');
-
-        $started = microtime(true);
-        $I->click('#go');
-        $elapsed = microtime(true) - $started;
-        codecept_debug(sprintf('Clicked after %.3f s', $elapsed));
-
-        Assert::assertSame('clicked', $I->grabTextFrom('#result'));
-        Assert::assertGreaterThan(1.9, $elapsed);
-        Assert::assertLessThan(4.0, $elapsed);
-    }
-
     public function doesNotWaitForARequestOnceItIsStale(BrowserTester $I): void
     {
         $I->amOnPage('/longpoll.html');

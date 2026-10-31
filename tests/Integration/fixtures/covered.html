@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>covered</title>
+<style>
+  .modal-overlay { position: fixed; inset: 0; background: rgb(0 0 0 / 0.3); }
+</style>
+<button id="save">Save</button>
+<p id="result">waiting</p>
+<div class="modal-overlay"></div>
+<script>
+  document.getElementById('save').addEventListener('click', () => { document.getElementById('result').textContent = 'saved'; });
+  if (!location.search.includes('forever')) {
+    setTimeout(() => document.querySelector('.modal-overlay').remove(), 1500);
+  }
+</script>

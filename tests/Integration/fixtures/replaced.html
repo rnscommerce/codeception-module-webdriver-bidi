@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>replaced</title>
+<div id="form"><button id="save" data-render="1" disabled>Save</button></div>
+<p id="result">waiting</p>
+<script>
+  const form = document.getElementById('form');
+  form.addEventListener('click', (event) => { document.getElementById('result').textContent = `saved by render ${event.target.dataset.render}`; });
+  setTimeout(() => { form.innerHTML = '<button id="save" data-render="2" disabled>Save</button>'; }, 400);
+  setTimeout(() => { document.getElementById('save').disabled = false; }, 900);
+</script>

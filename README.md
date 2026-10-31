@@ -83,29 +83,53 @@ window in it, whether the test passed or failed.
 - Session snapshots keep working: `loadSessionSnapshot` sets the saved cookies
   in the current test's user context.
 
-## Act on a settled page
+## Act on an actionable element
 
-Every action that acts on the page waits for it to be ready first, by the same
-rule, so a click never lands on a page still settling:
+Before an action on an element, the module finds the element as the action does
+and waits until it is actionable, as [Playwright](https://playwright.dev/docs/actionability)
+defines it:
 
-`appendField`, `attachFile`, `checkOption`, `clearField`, `click`,
-`clickWithLeftButton`, `clickWithRightButton`, `doubleClick`, `dragAndDrop`,
-`fillField`, `moveMouseOver`, `pressKey`, `selectOption`, `submitForm`, `type`,
-`uncheckOption` and `unselectOption`.
+| Action | Waits until the element is |
+| --- | --- |
+| `click`, `doubleClick`, `clickWithLeftButton`, `clickWithRightButton`, `checkOption`, `uncheckOption` | visible, stable, receiving events, enabled |
+| `moveMouseOver`, and both elements of `dragAndDrop` | visible, stable, receiving events |
+| `fillField`, `appendField`, `clearField` | visible, enabled, editable |
+| `selectOption`, `unselectOption` | visible, enabled |
+| `attachFile`, `submitForm`, `pressKey` | in the page |
 
-A suite whose own modules add actions that act on the page names them in
-`wait_before_actions`, and they wait the same way:
+- Stable: its box is the same over two animation frames.
+- Receiving events: once scrolled into view, a click at its centre would hit it or
+  something inside it, not an overlay.
+- Enabled: not disabled, by itself, a disabled fieldset or `aria-disabled`.
+- Editable: not `readonly` or `aria-readonly`.
+
+The element is checked again whenever the page's DOM changes and on every
+animation frame, and found again when a render replaces it. An element already
+actionable is acted on at once. One that is not by `action_timeout`, 10 s by
+default, fails the step with what holds it:
+
+```
+click waited 10 s for '#save', which is covered by <div class="modal-overlay"></div>
+```
+
+An element not found by then is left to the action, to fail as it would without
+the module. Assertions, waits and `type` are not checked.
+
+A suite whose own modules add actions names them in `actions`, each with the
+action whose finding and checks it takes, and in `argument` the position of its
+element when that is not the first:
 
 ```yaml
         - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
-              wait_before_actions: [fillDatePicker, clickTwice]
+              action_timeout: 10
+              actions:
+                  fillSecretField: {like: fillField}
+                  rapidClick: {like: click}
+                  clickInDialog: {like: click, argument: 1}
 ```
 
-It waits at most 2 s, then acts anyway: a page that never settles, with an
-animation that keeps restarting or a request that keeps polling, slows each action
-by 2 s but does not fail it. On a page already quiet the wait costs a few
-milliseconds. Waits,
-assertions, grabbers, navigation and popups are not waited for.
+An action a module calls from inside its own, such as the `click` in MFTF's
+`conditionalClick`, is not a step, so it is not checked.
 
 ## Waits that listen
 
@@ -137,7 +161,7 @@ session has BiDi.
 
 A driver that speaks WebDriver BiDi. A session without it, such as one a helper
 starts with capabilities of its own or with `_restart` and a new config, goes on
-without BiDi: actions do not wait for the page, `waitForPageReady` returns at
+without BiDi: actions are not checked, `waitForPageReady` returns at
 once, and the seven waits are the WebDriver module's own.
 
 It has been tested locally with ChromeDriver 156 and geckodriver 0.37 with
