@@ -18,10 +18,6 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: composer
           coverage: none
-      # rnscommerce/php-webdriver-bidi is private; its read-only deploy key lets composer clone it.
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.PHP_WEBDRIVER_BIDI_DEPLOY_KEY }}
       - run: composer install --no-interaction
       - name: Code style
         run: composer cs
@@ -39,9 +35,6 @@ jobs:
           php-version: '8.3'
           tools: composer
           coverage: none
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.PHP_WEBDRIVER_BIDI_DEPLOY_KEY }}
       - run: composer install --no-interaction
       - name: Locate the runner's drivers
         run: |

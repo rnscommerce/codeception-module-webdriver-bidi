@@ -6,7 +6,7 @@
   "repositories": [
     {
       "type": "vcs",
-      "url": "git@github.com:rnscommerce/php-webdriver-bidi.git"
+      "url": "https://github.com/rnscommerce/php-webdriver-bidi"
     }
   ],
   "require": {
@@ -45,11 +45,5 @@
       "@stan",
       "@test"
     ]
-  },
-  "config": {
-    "preferred-install": {
-      "rnscommerce/*": "source",
-      "*": "dist"
-    }
   }
 }
