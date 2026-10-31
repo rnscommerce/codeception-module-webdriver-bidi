@@ -51,7 +51,7 @@ jobs:
           tools: composer
           coverage: none
       - name: Pin what MFTF 4.7 locks
-        run: composer require --no-update codeception/codeception:5.0.13 codeception/module-webdriver:3.2.1 php-webdriver/webdriver:1.15.1
+        run: composer require --no-update codeception/codeception:5.0.13 codeception/module-webdriver:3.2.1 codeception/lib-web:1.0.4 codeception/lib-asserts:2.1.0 codeception/stub:4.1.2 behat/gherkin:4.9.0 php-webdriver/webdriver:1.15.1
       - run: composer update --no-interaction
       - name: Unit tests
         run: composer test
