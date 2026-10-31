@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Actionability;
 
+use Codeception\Scenario;
 use Facebook\WebDriver\Exception\TimeoutException;
 use PHPUnit\Framework\Assert;
 use Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\BrowserTester;
@@ -96,6 +97,15 @@ final class ActionabilityCest
         Assert::assertLessThan(0.2, $elapsed);
     }
 
+    public function aClickWaitsForItsElementToBeShown(BrowserTester $I): void
+    {
+        $I->amOnPage('/shown.html');
+
+        $I->click('#save');
+
+        Assert::assertSame('saved', $I->grabTextFrom('#result'));
+    }
+
     public function aClickScrollsToAnElementItsContainerClips(BrowserTester $I): void
     {
         $I->amOnPage('/clipped.html');
@@ -104,6 +114,56 @@ final class ActionabilityCest
 
         Assert::assertSame('deleted', $I->grabTextFrom('#result'));
         Assert::assertLessThan(1.0, $elapsed);
+    }
+
+    public function aSelectWithNoSizeIsSelectedFromAsChromeDoes(BrowserTester $I, Scenario $scenario): void
+    {
+        $I->amOnPage('/hidden-select.html');
+        $userAgent = $I->executeJS('return navigator.userAgent');
+        if (is_string($userAgent) && str_contains($userAgent, 'Firefox')) {
+            $scenario->skip('Firefox refuses to select from a select with no size');
+        }
+
+        $elapsed = self::time(static fn () => $I->selectOption('#stock', 'Out of Stock'));
+
+        Assert::assertSame('0', $I->grabValueFrom('#stock'));
+        Assert::assertLessThan(1.0, $elapsed);
+    }
+
+    public function anAriaDisabledButtonAndAnAriaReadOnlyFieldAreActedOnAtOnce(BrowserTester $I): void
+    {
+        $I->amOnPage('/allowed.html');
+
+        $elapsed = self::time(static function () use ($I): void {
+            $I->click('#aria-disabled');
+            $I->fillField('#aria-readonly', 'Ada');
+        });
+
+        Assert::assertSame('saved', $I->grabTextFrom('#result'));
+        Assert::assertSame('Ada', $I->grabValueFrom('#aria-readonly'));
+        Assert::assertLessThan(1.0, $elapsed);
+    }
+
+    public function aFieldWithNoSizeIsAppendedToAtOnce(BrowserTester $I): void
+    {
+        $I->amOnPage('/allowed.html');
+
+        $elapsed = self::time(static fn () => $I->appendField('#no-size', 'Ada'));
+
+        Assert::assertSame('Ada', $I->grabValueFrom('#no-size'));
+        Assert::assertLessThan(1.0, $elapsed);
+    }
+
+    public function aPointerActsAtOnceOnALinkShownOnlyOnHover(BrowserTester $I): void
+    {
+        $I->amOnPage('/allowed.html');
+
+        $hovered = self::time(static fn () => $I->moveMouseOver('#edit'));
+        $I->seeElement('#edit');
+        $clicked = self::time(static fn () => $I->clickWithLeftButton('#edit'));
+
+        Assert::assertSame('edited', $I->grabTextFrom('#result'));
+        Assert::assertLessThan(1.0, $hovered + $clicked);
     }
 
     public function aClickInATabLeftInTheBackgroundDoesNotWaitForFrames(BrowserTester $I): void

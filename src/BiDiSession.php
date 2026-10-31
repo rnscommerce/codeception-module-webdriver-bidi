@@ -96,6 +96,7 @@ final class BiDiSession
                 const tag = node.cloneNode(false).outerHTML;
                 return tag.length > 120 ? tag.slice(0, 119) + '…' : tag;
             };
+            const rendered = () => element.checkVisibility({ visibilityProperty: true });
             const centre = () => {
                 const box = element.getClientRects()[0];
                 if (!box) return null;
@@ -120,9 +121,11 @@ final class BiDiSession
                 for (let node = hit; node; node = node.parentNode ?? node.host) {
                     if (node === element) return true;
                 }
-                return false;
+                return hit?.closest('label')?.control === element;
             };
-            const covered = () => {
+            const receivesEvents = () => {
+                // One not rendered, such as one shown only on hover, is left to the action.
+                if (!rendered()) return null;
                 let point = centre();
                 if (!reaches(hitAt(point)) && !scrolled && (!point || clipper(point))) {
                     // Out of view, or clipped by a container it scrolls in: scrolled as WebDriver scrolls it.
@@ -137,22 +140,16 @@ final class BiDiSession
                 return container ? `is clipped by ${describe(container)}` : `is covered by ${describe(hit)}`;
             };
             const unmet = () => {
-                const box = element.getBoundingClientRect();
-                if (wanted.has('visible')
-                    && !(box.width > 0 && box.height > 0 && element.checkVisibility({ visibilityProperty: true }))) {
-                    return 'is not visible';
-                }
-                if ((wanted.has('enabled') || wanted.has('editable'))
-                    && (element.matches(':disabled') || element.closest('[aria-disabled="true"]'))) {
+                if (wanted.has('visible') && !rendered()) return 'is not visible';
+                if ((wanted.has('enabled') || wanted.has('editable')) && element.matches(':disabled')) {
                     return 'is disabled';
                 }
-                if (wanted.has('editable') && (element.matches('input[readonly], textarea[readonly], select[readonly]')
-                    || element.getAttribute('aria-readonly') === 'true')) {
+                if (wanted.has('editable') && element.matches('input[readonly], textarea[readonly]')) {
                     return 'is not editable';
                 }
                 // A hidden document draws no frames to compare.
                 if (wanted.has('stable') && !stable && !document.hidden) return 'is not stable';
-                return wanted.has('receivesEvents') ? covered() : null;
+                return wanted.has('receivesEvents') ? receivesEvents() : null;
             };
             const finish = (state) => {
                 finished = true;

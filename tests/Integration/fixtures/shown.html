@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>shown</title>
+<button id="save" style="display: none">Save</button>
+<p id="result">waiting</p>
+<script>
+  document.getElementById('save').addEventListener('click', () => { document.getElementById('result').textContent = 'saved'; });
+  setTimeout(() => { document.getElementById('save').style.display = ''; }, 800);
+</script>

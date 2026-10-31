@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>allowed</title>
+<style>
+  .row { display: inline-block; padding: 10px; }
+  .row #edit { visibility: hidden; }
+  .row:hover #edit { visibility: visible; }
+</style>
+<button id="aria-disabled" aria-disabled="true">Save</button>
+<input id="aria-readonly" aria-readonly="true">
+<input id="no-size" style="width: 0; height: 0; padding: 0; border: 0">
+<span class="row"><a href="#" id="edit">Edit</a></span>
+<p id="result">waiting</p>
+<script>
+  const result = document.getElementById('result');
+  document.getElementById('aria-disabled').addEventListener('click', () => { result.textContent = 'saved'; });
+  document.getElementById('edit').addEventListener('click', (event) => {
+    event.preventDefault();
+    result.textContent = 'edited';
+  });
+</script>

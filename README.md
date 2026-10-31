@@ -86,22 +86,28 @@ window in it, whether the test passed or failed.
 ## Act on an actionable element
 
 Before an action on an element, the module finds the element as the action does
-and waits until it is actionable, as [Playwright](https://playwright.dev/docs/actionability)
-defines it:
+and waits until it is actionable, by [Playwright](https://playwright.dev/docs/actionability)'s
+checks, taking only those without which WebDriver would refuse the action or take
+it to no effect:
 
 | Action | Waits until the element is |
 | --- | --- |
-| `click`, `doubleClick`, `clickWithLeftButton`, `clickWithRightButton`, `checkOption`, `uncheckOption` | visible, stable, receiving events, enabled |
-| `moveMouseOver`, and both elements of `dragAndDrop` | visible, stable, receiving events |
+| `click`, `checkOption`, `uncheckOption` | visible, stable, receiving events, enabled |
+| `doubleClick`, `clickWithLeftButton` | stable, receiving events, enabled |
+| `clickWithRightButton`, `moveMouseOver`, and both elements of `dragAndDrop` | stable, receiving events |
 | `fillField`, `appendField`, `clearField` | visible, enabled, editable |
-| `selectOption`, `unselectOption` | visible, enabled |
+| `selectOption`, `unselectOption` | enabled |
 | `attachFile`, `submitForm`, `pressKey` | in the page |
 
+- Visible: neither it nor an ancestor is `display: none`, and it is not
+  `visibility: hidden`.
 - Stable: its box is the same over two animation frames.
-- Receiving events: once scrolled into view, a click at its centre would hit it or
-  something inside it, not an overlay.
-- Enabled: not disabled, by itself, a disabled fieldset or `aria-disabled`.
-- Editable: not `readonly` or `aria-readonly`.
+- Receiving events: a click at its centre would hit it, something inside it or
+  its label, scrolling it into view first when it is outside the window or its
+  scrolling container. One not visible, such as a link shown only on hover, is
+  left to the pointer.
+- Enabled: not disabled, by itself or a disabled fieldset.
+- Editable: not `readonly`.
 
 The element is checked again whenever the page's DOM changes and on every
 animation frame, and found again when a render replaces it. An element already

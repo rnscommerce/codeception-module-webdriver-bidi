@@ -9,7 +9,8 @@ use Facebook\WebDriver\WebDriverElement;
 use InvalidArgumentException;
 
 /**
- * The elements each action acts on and the checks, as Playwright defines them, that each has to pass first.
+ * The elements each action acts on, and the checks each has to pass first: Playwright's, where WebDriver would
+ * refuse the action or take it to no effect without them.
  */
 final class Actionability
 {
@@ -19,10 +20,16 @@ final class Actionability
     public const EDITABLE = 'editable';
     public const RECEIVES_EVENTS = 'receivesEvents';
 
-    private const POINTER = [self::VISIBLE, self::STABLE, self::RECEIVES_EVENTS, self::ENABLED];
-    private const HOVER = [self::VISIBLE, self::STABLE, self::RECEIVES_EVENTS];
+    /** What an element click needs, which WebDriver refuses or clicks to no effect without. */
+    private const CLICK = [self::VISIBLE, self::STABLE, self::RECEIVES_EVENTS, self::ENABLED];
+
+    /** A pointer acting through actions may show what it acts on as it arrives, so visibility is not asked for. */
+    private const POINTER_CLICK = [self::STABLE, self::RECEIVES_EVENTS, self::ENABLED];
+    private const HOVER = [self::STABLE, self::RECEIVES_EVENTS];
     private const TYPING = [self::VISIBLE, self::ENABLED, self::EDITABLE];
-    private const CHOOSING = [self::VISIBLE, self::ENABLED];
+
+    /** WebDriver selects an option of a select it cannot see. */
+    private const CHOOSING = [self::ENABLED];
     private const ATTACHED = [];
 
     /**
@@ -31,12 +38,13 @@ final class Actionability
      * @var array<string, array{'clickable'|'field'|'checkable'|'element', list<string>, list<int>}>
      */
     private const ACTIONS = [
-        'click' => ['clickable', self::POINTER, [0]],
-        'doubleClick' => ['element', self::POINTER, [0]],
-        'clickWithLeftButton' => ['element', self::POINTER, [0]],
-        'clickWithRightButton' => ['element', self::POINTER, [0]],
-        'checkOption' => ['checkable', self::POINTER, [0]],
-        'uncheckOption' => ['checkable', self::POINTER, [0]],
+        'click' => ['clickable', self::CLICK, [0]],
+        'doubleClick' => ['element', self::POINTER_CLICK, [0]],
+        'clickWithLeftButton' => ['element', self::POINTER_CLICK, [0]],
+        // Chrome opens a context menu on a disabled control.
+        'clickWithRightButton' => ['element', self::HOVER, [0]],
+        'checkOption' => ['checkable', self::CLICK, [0]],
+        'uncheckOption' => ['checkable', self::CLICK, [0]],
         'moveMouseOver' => ['element', self::HOVER, [0]],
         'fillField' => ['field', self::TYPING, [0]],
         'appendField' => ['field', self::TYPING, [0]],
