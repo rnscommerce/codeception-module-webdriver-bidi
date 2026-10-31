@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  check:
+  unit:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -23,7 +23,12 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.PHP_WEBDRIVER_BIDI_DEPLOY_KEY }}
       - run: composer install --no-interaction
-      - run: composer check
+      - name: Code style
+        run: composer cs
+      - name: PHPStan
+        run: composer stan
+      - name: Unit tests
+        run: composer test
 
   integration:
     runs-on: ubuntu-latest
