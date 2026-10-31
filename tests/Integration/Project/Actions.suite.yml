@@ -1,0 +1,7 @@
+actor: ActionsTester
+modules:
+    enabled:
+        - WebDriver
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
+              wait_before_actions: [listedClick]
+        - \Rnscommerce\Codeception\WebDriverBiDi\Tests\Integration\Project\Support\CustomActions

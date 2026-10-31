@@ -93,6 +93,14 @@ rule, so a click never lands on a page still settling:
 `fillField`, `moveMouseOver`, `pressKey`, `selectOption`, `submitForm`, `type`,
 `uncheckOption` and `unselectOption`.
 
+A suite whose own modules add actions that act on the page names them in
+`wait_before_actions`, and they wait the same way:
+
+```yaml
+        - \Rnscommerce\Codeception\WebDriverBiDi\WebDriverBiDi:
+              wait_before_actions: [fillDatePicker, clickTwice]
+```
+
 It waits at most 2 s, then acts anyway: a page that never settles, with an
 animation that keeps restarting or a request that keeps polling, slows each action
 by 2 s but does not fail it. On a page already quiet the wait costs a few
@@ -121,6 +129,9 @@ changes at all.
 Codeception gives an action to the module listed last that has it, which is this
 one. Waits a module makes on its own behalf, such as MFTF's `waitForPageLoad`
 calling `waitForJS`, are the WebDriver module's and still check every 250 ms.
+A module that waits on its own behalf can find this one among the enabled modules
+and call its waits and `waitForPageReady` instead, once `_hasBiDi()` says the
+session has BiDi.
 
 ## What it needs from the driver
 

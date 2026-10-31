@@ -44,6 +44,9 @@ class WebDriverBiDi extends Module
     /** How long an action waits for the page to be ready before it acts on a page still busy. */
     private const READY_BEFORE_ACTING = 2.0;
 
+    /** @var array<string, mixed> */
+    protected array $config = ['wait_before_actions' => []];
+
     private WebDriver $webDriver;
 
     private ?BiDiSession $session = null;
@@ -76,7 +79,7 @@ class WebDriverBiDi extends Module
         if ($session === null || $session->isClosed() || $driver === null) {
             return;
         }
-        if (!in_array($step->getAction(), self::ACTIONS, true)) {
+        if (!$this->actsOnThePage($step->getAction())) {
             return;
         }
         $this->tolerate(function () use ($session, $driver): void {
@@ -109,6 +112,16 @@ class WebDriverBiDi extends Module
         $this->tolerate(fn () => $this->session?->close());
         $this->session = null;
         $this->sessionId = null;
+    }
+
+    /**
+     * Whether the WebDriver module's browser session has BiDi, so that waitForPageReady and the waits listen to the
+     * page rather than falling back to the WebDriver module's.
+     */
+    public function _hasBiDi(): bool
+    {
+        $this->follow();
+        return $this->session !== null && !$this->session->isClosed();
     }
 
     /**
@@ -247,6 +260,22 @@ class WebDriverBiDi extends Module
                 Locator::humanReadableString($script),
             ),
         );
+    }
+
+    protected function validateConfig(): void
+    {
+        parent::validateConfig();
+        $actions = $this->config['wait_before_actions'];
+        if (!is_array($actions) || !array_is_list($actions) || array_filter($actions, 'is_string') !== $actions) {
+            throw new ModuleConfigException($this, 'wait_before_actions has to be a list of action names');
+        }
+    }
+
+    private function actsOnThePage(string $action): bool
+    {
+        $configured = $this->config['wait_before_actions'];
+        return in_array($action, self::ACTIONS, true)
+            || (is_array($configured) && in_array($action, $configured, true));
     }
 
     private function findWebDriver(): WebDriver

@@ -65,6 +65,11 @@ abstract class CodeceptionTestCase extends TestCase
         $this->runSuite('Waits');
     }
 
+    public function testWaitingBeforeTheActionsASuiteAdds(): void
+    {
+        $this->runSuite('Actions');
+    }
+
     public function testRestartingTheBrowserForEachTest(): void
     {
         $output = $this->runSuite('Restart');
