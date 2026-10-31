@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>clipped</title>
+<style>
+  .grid { height: 80px; width: 400px; overflow: auto; border: 1px solid; }
+  .grid td { height: 30px; }
+</style>
+<div class="grid">
+  <table>
+    <tr><td>first</td><td><a href="#" class="delete">Delete</a></td></tr>
+    <tr><td>second</td><td><a href="#" class="delete">Delete</a></td></tr>
+    <tr><td>third</td><td><a href="#" class="delete">Delete</a></td></tr>
+    <tr><td>test-page</td><td><a href="#" class="delete" id="delete">Delete</a></td></tr>
+  </table>
+</div>
+<p id="result">waiting</p>
+<script>
+  document.getElementById('delete').addEventListener('click', (event) => {
+    event.preventDefault();
+    document.getElementById('result').textContent = 'deleted';
+  });
+</script>

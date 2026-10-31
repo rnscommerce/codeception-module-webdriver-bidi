@@ -96,28 +96,45 @@ final class BiDiSession
                 const tag = node.cloneNode(false).outerHTML;
                 return tag.length > 120 ? tag.slice(0, 119) + '…' : tag;
             };
+            const centre = () => {
+                const box = element.getClientRects()[0];
+                if (!box) return null;
+                const x = (Math.max(box.left, 0) + Math.min(box.right, innerWidth)) / 2;
+                const y = (Math.max(box.top, 0) + Math.min(box.bottom, innerHeight)) / 2;
+                return x >= 0 && x < innerWidth && y >= 0 && y < innerHeight ? [x, y] : null;
+            };
+            const clipper = ([x, y]) => {
+                for (let node = element.parentElement; node; node = node.parentElement) {
+                    const style = getComputedStyle(node);
+                    if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
+                    const box = node.getBoundingClientRect();
+                    if (x < box.left || x >= box.right || y < box.top || y >= box.bottom) return node;
+                }
+                return null;
+            };
+            const hitAt = (point) => {
+                const root = element.getRootNode();
+                return point && (root.elementFromPoint ? root : document).elementFromPoint(...point);
+            };
+            const reaches = (hit) => {
+                for (let node = hit; node; node = node.parentNode ?? node.host) {
+                    if (node === element) return true;
+                }
+                return false;
+            };
             const covered = () => {
-                let box = element.getClientRects()[0];
-                const inView = (b) => {
-                    const x = (Math.max(b.left, 0) + Math.min(b.right, innerWidth)) / 2;
-                    const y = (Math.max(b.top, 0) + Math.min(b.bottom, innerHeight)) / 2;
-                    return x >= 0 && x < innerWidth && y >= 0 && y < innerHeight ? [x, y] : null;
-                };
-                let point = box && inView(box);
-                if (!point && !scrolled) {
-                    // Where WebDriver scrolls an element it acts on.
+                let point = centre();
+                if (!reaches(hitAt(point)) && !scrolled && (!point || clipper(point))) {
+                    // Out of view, or clipped by a container it scrolls in: scrolled as WebDriver scrolls it.
                     element.scrollIntoView({ block: 'end', inline: 'nearest' });
                     scrolled = true;
-                    box = element.getClientRects()[0];
-                    point = box && inView(box);
+                    point = centre();
                 }
+                const hit = hitAt(point);
+                if (reaches(hit)) return null;
                 if (!point) return 'is outside the viewport';
-                const root = element.getRootNode();
-                const hit = (root.elementFromPoint ? root : document).elementFromPoint(...point);
-                for (let node = hit; node; node = node.parentNode ?? node.host) {
-                    if (node === element) return null;
-                }
-                return hit ? `is covered by ${describe(hit)}` : 'is outside the viewport';
+                const container = clipper(point);
+                return container ? `is clipped by ${describe(container)}` : `is covered by ${describe(hit)}`;
             };
             const unmet = () => {
                 const box = element.getBoundingClientRect();

@@ -96,6 +96,16 @@ final class ActionabilityCest
         Assert::assertLessThan(0.2, $elapsed);
     }
 
+    public function aClickScrollsToAnElementItsContainerClips(BrowserTester $I): void
+    {
+        $I->amOnPage('/clipped.html');
+
+        $elapsed = self::time(static fn () => $I->click('#delete'));
+
+        Assert::assertSame('deleted', $I->grabTextFrom('#result'));
+        Assert::assertLessThan(1.0, $elapsed);
+    }
+
     public function aClickInATabLeftInTheBackgroundDoesNotWaitForFrames(BrowserTester $I): void
     {
         $I->amOnPage('/perpetual.html');
