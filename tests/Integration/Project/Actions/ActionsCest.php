@@ -30,6 +30,16 @@ final class ActionsCest
         Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
     }
 
+    public function anActionCheckingItsInnerClickThroughTheModuleWaitsForTheTransitionInItsWay(ActionsTester $I): void
+    {
+        $I->amOnPage('/transition.html?duration=1.5s');
+        $I->click('#open');
+
+        $I->checkedInnerClick('#confirm');
+
+        Assert::assertSame('confirmed', $I->grabTextFrom('#result'));
+    }
+
     public function anActionNotInItActsAtOnce(ActionsTester $I): void
     {
         $I->amOnPage('/transition.html?duration=1.5s');

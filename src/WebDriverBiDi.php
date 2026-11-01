@@ -76,27 +76,7 @@ class WebDriverBiDi extends Module
 
     public function _beforeStep(Step $step): void
     {
-        $driver = $this->webDriver->webDriver;
-        $session = $this->session;
-        if ($session === null || $session->isClosed() || $driver === null) {
-            return;
-        }
-        $targets = $this->actionability->targets($step->getAction(), $step->getArguments());
-        if ($targets === []) {
-            return;
-        }
-        $timeout = $this->seconds('action_timeout');
-        $deadline = microtime(true) + $timeout;
-        $unmet = null;
-        $this->tolerate(function () use ($session, $driver, $targets, $deadline, &$unmet): void {
-            $window = $driver->getWindowHandle();
-            foreach ($targets as $target) {
-                $unmet ??= $this->waitUntilActionable($session, $window, $target, $deadline);
-            }
-        });
-        if ($unmet !== null) {
-            throw new TimeoutException(sprintf('%s waited %s s for %s', $step->getAction(), $timeout, $unmet));
-        }
+        $this->_waitUntilActionable($step->getAction(), $step->getArguments());
     }
 
     public function _afterStep(Step $step): void
@@ -160,6 +140,40 @@ class WebDriverBiDi extends Module
         }, $timeout);
         if (!$held && $failure !== null) {
             throw $failure;
+        }
+    }
+
+    /**
+     * Waits until the element of an action is actionable, with the checks a step of that action is given, and fails
+     * as that step would. Without BiDi, or for an action not checked, it returns at once.
+     *
+     * A suite's own module checks an action it calls from inside its own, which is not a step, by passing it here.
+     *
+     * @param array<mixed> $arguments the action's arguments, as a step of it takes them
+     */
+    public function _waitUntilActionable(string $action, array $arguments): void
+    {
+        $this->tolerate($this->follow(...));
+        $driver = $this->webDriver->webDriver;
+        $session = $this->session;
+        if ($session === null || $session->isClosed() || $driver === null) {
+            return;
+        }
+        $targets = $this->actionability->targets($action, $arguments);
+        if ($targets === []) {
+            return;
+        }
+        $timeout = $this->seconds('action_timeout');
+        $deadline = microtime(true) + $timeout;
+        $unmet = null;
+        $this->tolerate(function () use ($session, $driver, $targets, $deadline, &$unmet): void {
+            $window = $driver->getWindowHandle();
+            foreach ($targets as $target) {
+                $unmet ??= $this->waitUntilActionable($session, $window, $target, $deadline);
+            }
+        });
+        if ($unmet !== null) {
+            throw new TimeoutException(sprintf('%s waited %s s for %s', $action, $timeout, $unmet));
         }
     }
 

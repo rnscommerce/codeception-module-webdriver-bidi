@@ -135,7 +135,14 @@ element when that is not the first:
 ```
 
 An action a module calls from inside its own, such as the `click` in MFTF's
-`conditionalClick`, is not a step, so it is not checked.
+`conditionalClick`, is not a step, so it is not checked. The module checks it by
+passing the action and its arguments to `_waitUntilActionable` first, which waits
+as a step of that action would and fails with the same message:
+
+```php
+$this->getModule('\\' . WebDriverBiDi::class)->_waitUntilActionable('click', [$selector]);
+$this->click($selector);
+```
 
 ## Waits that listen
 
